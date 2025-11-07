@@ -1,0 +1,20 @@
+{
+  "name": "physio7-bi",
+  "version": "1.0.0",
+  "description": "",
+  "repository": {
+    "type": "git",
+    "url": "physio-7-bi"
+  },
+  "license": "ISC",
+  "author": "Mateo Tiedra",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "playwright": "^1.56.1"
+  }
+}
