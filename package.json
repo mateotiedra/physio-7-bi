@@ -13,6 +13,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "parse-pdf": "ts-node src/testPdfParser.ts",
+    "scrap-patients": "ts-node src/scrapers/patients.ts",
     "build": "tsc"
   },
   "dependencies": {

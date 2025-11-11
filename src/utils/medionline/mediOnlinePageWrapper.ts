@@ -1,7 +1,7 @@
 import { FrameLocator, Locator, Page } from "playwright";
-import { MediOnlineError, MediOnlineInsuranceError, MediOnlineDoctorNotFoundError, MediOnlineMultiplePatientsError, MediOnlinePatientNotFoundError, MediOnlineCreateTreatmentUnknownError } from "../../../types/medionline.types";
-import { calculateStringSimilarity } from "../helpers";
-import { VoucherData } from "../../../types/voucher.types";
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import { MediOnlineError, MediOnlineInsuranceError, MediOnlineDoctorNotFoundError, MediOnlineMultiplePatientsError, MediOnlinePatientNotFoundError, MediOnlineCreateTreatmentUnknownError } from "./medionline.types";
 
 export class MediOnlinePageWrapper {
     constructor(private context: FrameLocator | Locator | Page) { }
@@ -26,7 +26,7 @@ export class MediOnlinePageWrapper {
 
     /**
      * Select an option from a dropdown by matching text content
-     * 
+     *
      * @param selectId - The ID attribute of the select element
      * @param includeStr - The text that should be included in the option to select
      * @returns Promise that resolves when the option is selected
@@ -49,7 +49,7 @@ export class MediOnlinePageWrapper {
 
     /**
      * Navigate back to the MediOnline homepage
-     * 
+     *
      * @returns Promise that resolves when navigation is complete
      * @throws MediOnlineNavigationError if navigation fails
      */
@@ -66,7 +66,7 @@ export class MediOnlinePageWrapper {
 
     /**
      * Search for a patient and navigate to their dashboard
-     * 
+     *
      * @param firstName - Patient's first name
      * @param lastName - Patient's last name
      * @param dateOfBirth - Patient's date of birth
@@ -80,14 +80,7 @@ export class MediOnlinePageWrapper {
             console.log(`Navigating to dashboard for patient: ${firstName} ${lastName}`);
 
             // Navigate to patient search
-            await this.page.click('input[name="ctl00$btnShortcut2"]');
-            await this.page.waitForLoadState('networkidle');
-
-            // Fill in patient details and search
-            await this.page.fill('input[name="ctl00$CPH$ctl00$patientSearch1$txtLastName"]', lastName);
-            await this.page.fill('input[name="ctl00$CPH$ctl00$patientSearch1$txtFirstName"]', firstName);
-            await this.page.fill('input[name="ctl00$CPH$ctl00$patientSearch1$txtBirthdate"]', dateOfBirth);
-            await this.page.click('input[name="ctl00$CPH$ctl00$patientSearch1$btnAdvancedSearch"]');
+            await this.searchPatients({ firstName, lastName, dateOfBirth });
 
             // Wait for search results to load
             await this.page.waitForLoadState('networkidle');
@@ -120,166 +113,84 @@ export class MediOnlinePageWrapper {
         }
     }
 
-    /**
-     * Navigate to the treatment page from the patient dashboard
-     * @returns Promise that resolves to the treatment page
-     */
-    async goToTreatmentPage(): Promise<void> {
-        try {
-            // Go to the treatment tab
-            await this.page.click('a[id="ctl00_CPH_ctl00_pati_tabs_011_lbtnTraitement"]');
-            await this.page.waitForLoadState('networkidle');
+    async searchPatients({ firstName, lastName, dateOfBirth }: { firstName: string; lastName: string; dateOfBirth: string }): Promise<void> {
 
-            // Access the iframe where the treatment content is loaded
-            const treatmentFrame = this.page.frameLocator('iframe[id="ctl00_CPH_ctl00_pati_tabs_011_ctl00_myIframe"]');
+        // Navigate to patient search
+        await this.page.click('input[name="ctl00$btnShortcut2"]');
+        await this.page.waitForLoadState('networkidle');
 
-            // Select Centre + create a new treatment entry
-            const centreID = 'MED3A SA';
+        // Fill in patient details and search
+        await this.page.fill('input[name="ctl00$CPH$ctl00$patientSearch1$txtLastName"]', lastName);
+        await this.page.fill('input[name="ctl00$CPH$ctl00$patientSearch1$txtFirstName"]', firstName);
+        await this.page.fill('input[name="ctl00$CPH$ctl00$patientSearch1$txtBirthdate"]', dateOfBirth);
+        await this.page.click('input[name="ctl00$CPH$ctl00$patientSearch1$btnAdvancedSearch"]');
+
+        await this.page.waitForLoadState('networkidle');
+    }
+
+    async downloadPatientsPageDoc(): Promise<string> {
+        // Select all patients on the current page & access their pdf export page
+        for (let i = 3; i <= 27; i++) {
             try {
-                const frameWrapper = new MediOnlinePageWrapper(treatmentFrame);
-                await frameWrapper.selectOptionIncludeStr('ctl00_MainContentPlaceHolder_ddlAccount', centreID);
-            } catch (error) {
-                throw new MediOnlineCreateTreatmentUnknownError(`Erreur lors de la selection du centre: ${(error as Error).message}`);
+                await this.page.click(`input[id="ctl00_CPH_ctl00_PatientSearchResult_GridView1_ctl${i.toString().padStart(2, '0')}_chkSelect"]`, { timeout: 90000 });
+            } catch {
+                break;
             }
-            await treatmentFrame.locator('input[id="ctl00_MainContentPlaceHolder_btnNew"]').click();
-            await this.page.waitForLoadState('networkidle');
-        } catch (error) {
-            if (error instanceof MediOnlineError) {
-                throw error;
-            }
-            const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
-            throw new MediOnlineCreateTreatmentUnknownError(`Erreur inattendue lors de la navigation vers la page de traitement: ${errorMessage}`);
         }
+
+        // Go to export page
+        await this.page.click('input[name="ctl00$CPH$ctl00$PatientSearchResult$GridView1$ctl29$ctl02"]', { timeout: 90000 });
+        await this.page.waitForLoadState('networkidle');
+
+        // Open PDF in a new page (PDF viewer)
+        const pdfViewerPagePromise = this.page.context().waitForEvent('page', { timeout: 90000 });
+        await this.page.click('a[id="ctl00_CPH_ctl00_btnPDF"]');
+        const pdfViewerPage = await pdfViewerPagePromise;
+        await pdfViewerPage.waitForLoadState('networkidle');
+
+        const pdfPath = await this.downloadPdfFromUrl(pdfViewerPage);
+        return pdfPath;
     }
 
-    /**
-     * Navigate to the treatment infos page from the treatment page
-     * @returns Promise that resolves to the treatment infos page
-     */
-    async goToTreatmentInfosPage(): Promise<MediOnlinePageWrapper> {
-        let treatmentInfosPage: Page | null = null;
+    async downloadPdfFromUrl(pdfPage: Page): Promise<string> {
+        // Attempt to download the PDF content from the viewer page URL
         try {
-            await this.page.waitForLoadState('networkidle');
+            const pdfUrl = pdfPage.url();
 
-            // Wait for the modification request button to appear with a timeout
-            const editTreatmentInfosButton = this.page.locator('a[id="ctl00_CPH_ctl00_ModuleAffichage_InfoTraitement_ButtonDemandeModification"]').first();
-
-            try {
-                await editTreatmentInfosButton.waitFor({ state: 'attached', timeout: 5000 });
-            } catch (error) {
-                // Button doesn't exist - insurance issue
-                throw new MediOnlineInsuranceError();
+            // Use the page's request context to fetch the binary PDF
+            // Note: page.request is available in recent Playwright versions.
+            const response = await (pdfPage.request).get(pdfUrl, { timeout: 90000 });
+            if (!response.ok()) {
+                throw new Error(`Failed to fetch PDF. Status: ${response.status()}`);
             }
 
-            // Open the treatmentInfos page
-            const treatmentInfosPagePromise = this.page.context().waitForEvent('page');
-            await editTreatmentInfosButton.click();
-            treatmentInfosPage = await treatmentInfosPagePromise;
-            await treatmentInfosPage.waitForLoadState('networkidle');
+            const buffer = await response.body();
 
-            return new MediOnlinePageWrapper(treatmentInfosPage);
-        } catch (error) {
-            if (treatmentInfosPage) {
-                await treatmentInfosPage.close();
-            }
+            // Ensure downloads directory exists
+            const downloadsDir = path.join(process.cwd(), 'downloads');
+            await fs.mkdir(downloadsDir, { recursive: true });
 
-            if (error instanceof MediOnlineError) {
-                throw error;
-            }
-            const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
-            throw new MediOnlineCreateTreatmentUnknownError(`Erreur inattendue lors de l'ouverture des informations du traitement: ${errorMessage}`);
+            const fileName = `patients_${Date.now()}.pdf`;
+            const filePath = path.join(downloadsDir, fileName);
+
+            await fs.writeFile(filePath, buffer);
+
+            // Close the viewer page to free resources
+            try { await pdfPage.close(); } catch { }
+
+            return filePath;
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Unknown error while downloading PDF';
+            // Close the viewer page if it's still open
+            try { await pdfPage.close(); } catch { }
+            throw new MediOnlineError(`Failed to download PDF: ${errorMessage}`, 'DOWNLOAD_ERROR');
         }
     }
 
-    /** Add doctor information to the treatment infos page
-     * 
-     * @param voucher - The voucher data containing doctor information
-     * @returns Promise that resolves when doctor info is added
-     * @throws MediOnlineDoctorNotFoundError if doctor is not found
-     * @throws MediOnlineNavigationError if navigation fails
-     */
-    async addDoctorInfo(voucher: VoucherData): Promise<void> {
-        try {
-            // Open the doctor search page
-            const searchDoctorPagePromise = this.page.context().waitForEvent('page');
-            await this.page.click('input[id="ctl00_CPH_ctl00_uc_vi_presc_011_imgSearch"]');
-            const searchDoctorPage = await searchDoctorPagePromise;
-
-            // Fill in doctor search fields
-            const cleanedRCC = voucher.doctor_rcc.replace(/[.Xx]/g, '');
-            await searchDoctorPage.fill('input[id="ctl00_CPH_ctl00_TextBoxConcordat"]', cleanedRCC);
-            await searchDoctorPage.click('input[id="ctl00_CPH_ctl00_btnChercher"]');
-            await searchDoctorPage.waitForLoadState('networkidle');
-
-            // Count the number of rows in the search results table
-            const resultTable = searchDoctorPage.locator('table#ctl00_CPH_ctl00_DataGrid1 tbody').first();
-            const rowCount = await resultTable.locator('> tr').count() - 3;
-            if (rowCount < 1) {
-                searchDoctorPage.close();
-                throw new MediOnlineDoctorNotFoundError(`Le numéro RCC ${voucher.doctor_rcc.toUpperCase()} ne correspond à aucun médecin enregistré.`);
-            }
-
-            // Check if result match the extracted doctor name and select it if so
-            const resultRow = resultTable.locator('> tr').nth(2);
-
-            const lastNameCell = resultRow.locator('> td').nth(2);
-            const firstNameCell = resultRow.locator('> td').nth(3);
-            const foundDoctorFullName = await lastNameCell.innerText() + ' ' + await firstNameCell.innerText();
-
-            console.log('FOUND DOCTOR NAME:', foundDoctorFullName);
-            if (foundDoctorFullName.toLowerCase() !== voucher.doctor_fullname.toLowerCase()) {
-                if (calculateStringSimilarity(voucher.doctor_fullname, foundDoctorFullName) < 0.8) {
-                    searchDoctorPage.close();
-                    throw new MediOnlineDoctorNotFoundError(`Le nom du médecin trouvé "${foundDoctorFullName}", ne correspond pas à celui fourni "${voucher.doctor_fullname}". Veuillez vérifier le RCC ou le nom du médecin afin de pouvoir enregistrer le bon.`);
-                }
-                voucher.doctor_fullname = foundDoctorFullName;
-            }
-            await searchDoctorPage.click('a[id="ctl00_CPH_ctl00_DataGrid1_ctl03_hrefSelect"]');
-        } catch (error) {
-            if (error instanceof MediOnlineError) {
-                throw error;
-            }
-            const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
-            throw new MediOnlineCreateTreatmentUnknownError(`Erreur inattendue lors de l'ajout du médecin: ${errorMessage}`);
-        }
+    async goToNextPatientsPage(): Promise<boolean> {
+        return false
     }
 
-    async closeTreatmentPage(): Promise<void> {
-        try {
-            await this.page.locator('input[id="ctl00_CPH_ctl00_btnValider"]').click();
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
-            throw new MediOnlineCreateTreatmentUnknownError(`Erreur inattendue lors de la fermeture des informations du traitement: ${errorMessage}`);
-
-        }
-    }
-
-    async uploadVoucherFile(filePath: string): Promise<void> {
-        try {
-            // Open the add document page
-            const addVoucherPagePromise = this.page.context().waitForEvent('page');
-            await this.page.click('input[id="ctl00_CPH_ctl00_ModuleAffichage_Action_btnAddDocument"]');
-            const addVoucherPage = await addVoucherPagePromise;
-
-            // Upload the voucher file
-            await addVoucherPage.setInputFiles(
-                'input[type="file"][name="ctl00$CPH$ctl00$FileUpload1"]',
-                filePath
-            );
-
-            // Submit the upload
-            await addVoucherPage.click('input[id="ctl00_CPH_ctl00__BtnValider"]');
-            await addVoucherPage.waitForLoadState('networkidle');
-            await addVoucherPage.click('input[id="ctl00_CPH_ctl00_docs_DgnImg_011_btnValider"]');
-            await this.page.waitForLoadState('networkidle');
-        } catch (error) {
-            if (error instanceof MediOnlineError) {
-                throw error;
-            }
-            const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
-            throw new MediOnlineCreateTreatmentUnknownError(`Erreur lors de l'upload du fichier de bon: ${errorMessage}`);
-        }
-    }
 
     getContext(): FrameLocator | Locator | Page {
         return this.context;

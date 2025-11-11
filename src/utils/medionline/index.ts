@@ -9,6 +9,7 @@ import {
 } from './medionline.types';
 import { MediOnlinePageWrapper } from './mediOnlinePageWrapper';
 import { config } from '../../config';
+import { parsePatientsPdf, PatientInfo } from '../pdfParser';
 
 
 class MediOnlineManager {
@@ -19,7 +20,7 @@ class MediOnlineManager {
     private mpage: MediOnlinePageWrapper = undefined as unknown as MediOnlinePageWrapper;
     private status: 'not connected' | 'connecting' | 'connected' = 'not connected';
 
-    constructor(headless: boolean = false, defaultTimeout: number = 10000) {
+    constructor(headless: boolean = false, defaultTimeout: number = 30000) {
         this.headless = headless;
         this.defaultTimeout = defaultTimeout;
     }
@@ -31,7 +32,7 @@ class MediOnlineManager {
      * @throws MediOnlineCredentialsError if credentials are missing
      * @throws MediOnlineLoginError if login fails
      */
-    async login(): Promise<void> {
+    async login(username: string, password: string): Promise<void> {
         if (this.status !== 'not connected') {
             return;
         }
@@ -39,10 +40,6 @@ class MediOnlineManager {
 
         this.browser = await chromium.launch({ headless: this.headless });
         try {
-            // Get credentials from config
-            const username = config.medionline.username;
-            const password = config.medionline.password;
-
             if (!username || !password) {
                 throw new MediOnlineCredentialsError();
             }
@@ -98,7 +95,7 @@ class MediOnlineManager {
      */
     async logoutAndClose(): Promise<void> {
         if (this.status !== 'connected') {
-            return;
+            throw new MediOnlineError('Cannot logout when not connected', 'NOT_CONNECTED');
         }
         this.browser?.close();
         this.browser = undefined as unknown as Browser;
@@ -106,6 +103,22 @@ class MediOnlineManager {
         this.status = 'not connected';
         console.log('MediOnline logged out and browser closed');
     }
+
+    async scrapePatients(uploadPatientsData: (patients: PatientInfo[]) => Promise<void>): Promise<void> {
+        if (this.status !== 'connected') {
+            throw new MediOnlineError('Cannot query patients when not connected', 'NOT_CONNECTED');
+        }
+        let nextPageAvailable = true;
+
+        await this.mpage.searchPatients({ firstName: '', lastName: '', dateOfBirth: '' });
+        while (nextPageAvailable) {
+            const pdfPath = await this.mpage.downloadPatientsPageDoc();
+            const hasNext = await this.mpage.goToNextPatientsPage();
+            const patients = await parsePatientsPdf(pdfPath);
+            await uploadPatientsData(patients);
+            nextPageAvailable = hasNext;
+        }
+    }
 }
 
-export const mediOnline = new MediOnlineManager(true);
+export const mediOnline = new MediOnlineManager(false);

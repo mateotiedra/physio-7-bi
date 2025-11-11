@@ -1,7 +1,4 @@
-import fs from 'fs';
-
 import { PDFParse } from 'pdf-parse';
-import { title } from 'process';
 
 export interface PatientInfo {
     title?: string,
@@ -52,11 +49,11 @@ export interface PatientInfo {
 /**
  * Parse a patient info PDF and extract structured data
  */
-export async function parsePatientPdf(pdfPath: string): Promise<PatientInfo> {
+export async function parsePatientsPdf(pdfPath: string): Promise<PatientInfo[]> {
     const parser = new PDFParse({ url: pdfPath });
     const data = await parser.getText();
 
-    return parsePatientText(data.text);
+    return data.pages.map(page => parsePatientText(page.text));
 }
 
 /**
