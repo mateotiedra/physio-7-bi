@@ -20,7 +20,7 @@ class MediOnlineManager {
     private mpage: MediOnlinePageWrapper = undefined as unknown as MediOnlinePageWrapper;
     private status: 'not connected' | 'connecting' | 'connected' = 'not connected';
 
-    constructor(headless: boolean = false, defaultTimeout: number = 30000) {
+    constructor(headless: boolean = false, defaultTimeout: number = 10000) {
         this.headless = headless;
         this.defaultTimeout = defaultTimeout;
     }
@@ -108,15 +108,31 @@ class MediOnlineManager {
         if (this.status !== 'connected') {
             throw new MediOnlineError('Cannot query patients when not connected', 'NOT_CONNECTED');
         }
-        let nextPageAvailable = true;
 
-        await this.mpage.searchPatients({ firstName: '', lastName: '', dateOfBirth: '' });
-        while (nextPageAvailable) {
-            const pdfPath = await this.mpage.downloadPatientsPageDoc();
-            const hasNext = await this.mpage.goToNextPatientsPage();
-            const patients = await parsePatientsPdf(pdfPath);
-            await uploadPatientsData(patients);
-            nextPageAvailable = hasNext;
+        //await this.mpage.searchPatients({ firstName: '', lastName: '', dateOfBirth: '' });
+        await this.mpage.goToPatientDashboard('Mateo', 'Tiedra', '');
+        let currPageIndex = 1320;
+        let currPatientIndex = 0;
+
+        while (true) {
+            //const lastPatientOfThePage = await this.mpage.goToPatientInfoPage(currPatientIndex);
+            const lastPatientOfThePage = true;
+            const patientData = await this.mpage.scrapeCurrentPatientPage();
+            await uploadPatientsData([patientData]);
+
+            // Try to go to the next patient search page
+            if (lastPatientOfThePage) {
+                try {
+                    await this.mpage.goToPatientSearchPage(++currPageIndex);
+                    console.log(`Moving to patient search page ${currPageIndex}`);
+                    currPatientIndex = 0;
+                } catch {
+                    console.log('Finished scaping all the patients');
+                    return;
+                }
+            } else {
+                currPatientIndex++;
+            }
         }
     }
 }

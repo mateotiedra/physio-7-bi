@@ -1,7 +1,8 @@
 import { FrameLocator, Locator, Page } from "playwright";
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { MediOnlineError, MediOnlineInsuranceError, MediOnlineDoctorNotFoundError, MediOnlineMultiplePatientsError, MediOnlinePatientNotFoundError, MediOnlineCreateTreatmentUnknownError } from "./medionline.types";
+import { MediOnlineError, MediOnlineMultiplePatientsError, MediOnlinePatientNotFoundError, MediOnlineCreateTreatmentUnknownError } from "./medionline.types";
+import { PatientInfo } from "./medionline.types";
 
 export class MediOnlinePageWrapper {
     constructor(private context: FrameLocator | Locator | Page) { }
@@ -187,10 +188,181 @@ export class MediOnlinePageWrapper {
         }
     }
 
-    async goToNextPatientsPage(): Promise<boolean> {
-        return false
+    async goToPatientInfoPage(patientIndex: number): Promise<boolean> {
+
+        // Check if there's a next patient button (patient right after)
+        const nextPatientButtonExists = await this.page.locator(`input[id="ctl00_CPH_ctl00_PatientSearchResult_GridView1_ctl${(patientIndex + 4).toString().padStart(2, '0')}_chkSelect"]`).count() > 0;
+        const lastPatientOfThePage = !nextPatientButtonExists;
+
+        // Select the patient
+        await this.page.click(`input[id="ctl00_CPH_ctl00_PatientSearchResult_GridView1_ctl${(patientIndex + 3).toString().padStart(2, '0')}_btnEdit"]`);
+
+        return lastPatientOfThePage;
     }
 
+    async goToPatientSearchPage(pageIndex: number): Promise<boolean> {
+        // Count the number of rows in the search results table to confirm navigation
+        const resultTable = this.page.locator('table#ctl00_CPH_ctl00_PatientSearchResult_GridView1 tbody').first();
+        await resultTable.innerHTML();
+        const rowCount = await resultTable.locator('> tr').count();
+        if (rowCount < 28) {
+            throw new Error('You have reached the last page (the page you\'re currently on).');
+        }
+
+        // This executes inside the page and triggers the same server-side postback as clicking the link.
+        const eventTarget = 'ctl00$CPH$ctl00$PatientSearchResult$GridView1';
+        const eventArgument = `Page$${pageIndex}`;
+
+        const doPostBackExists = await this.page.evaluate(() => typeof ((globalThis as any).__doPostBack) === 'function');
+        if (doPostBackExists) {
+            await this.page.evaluate(({ target, arg }) => {
+                (globalThis as any).__doPostBack(target, arg);
+            }, { target: eventTarget, arg: eventArgument });
+            await this.page.waitForLoadState('networkidle');
+            return true;
+        }
+
+        throw new Error('Could not find pager link or perform postback');
+    }
+
+    // Helper to safely get input/select values
+    async getInputValue(selector: string): Promise<string | undefined> {
+        await this.page.locator(selector).innerHTML();
+        const locator = this.page.locator(selector).first();
+        if (await locator.count() === 0) {
+            throw new MediOnlineError(`Input element not found for selector: ${selector}`, 'ELEMENT_NOT_FOUND');
+        }
+        try {
+            const v = await locator.inputValue();
+            return v !== '' ? v : undefined;
+        } catch {
+            // fallback to value attribute
+            const attr = await locator.getAttribute('value');
+            return attr ?? undefined;
+        }
+    };
+
+    async getSelectText(selector: string): Promise<string | undefined> {
+        const opt = this.page.locator(`${selector} option:checked`).first();
+        if (await opt.count() > 0) {
+            const txt = await opt.textContent();
+            return txt?.trim() || undefined;
+        }
+        // fallback: try to read selectedIndex via evaluate
+        try {
+            return await this.page.evaluate((sel) => {
+                const doc: any = (globalThis as any).document;
+                if (!doc) return undefined;
+                const s: any = doc.querySelector(sel);
+                if (!s) return undefined;
+                const idx = typeof s.selectedIndex === 'number' ? s.selectedIndex : -1;
+                const o = s.options && s.options[idx];
+                const text = o ? (o.text || o.textContent || '').trim() : undefined;
+                return text;
+            }, selector);
+        } catch {
+            return undefined;
+        }
+    };
+
+    async getRadioValue(radioConfigs: Array<{ id: string; label: string }>): Promise<string | undefined> {
+        try {
+            for (const radio of radioConfigs) {
+                const radioLocator = this.page.locator(radio.id).first();
+                if (await radioLocator.count() > 0) {
+                    const isChecked = await radioLocator.isChecked().catch(() => false);
+                    if (isChecked) {
+                        return radio.label;
+                    }
+                }
+            }
+            return undefined;
+        } catch {
+            return undefined;
+        }
+    };
+
+    async scrapeCurrentPatientPage(): Promise<PatientInfo> {
+        const info: PatientInfo = {};
+
+        // General patient info
+        info.noPatient = await this.getInputValue('input[id="ctl00_CPH_ctl00_patientDetails_txtNumber"]');
+        info.langue = await this.getSelectText('#ctl00_CPH_ctl00_patientDetails_ddlLanguage');
+        info.nationalite = await this.getSelectText('#ctl00_CPH_ctl00_patientDetails_ddlNationality');
+        info.dob = await this.getInputValue('input[id="ctl00_CPH_ctl00_patientDetails_txtBirthdate"]');
+        info.dateDeces = await this.getInputValue('input[id="ctl00_CPH_ctl00_patientDetails_txtDeathDate"]');
+        info.noAvs = await this.getInputValue('input[id="ctl00_CPH_ctl00_patientDetails_txtAvsNb"]');
+        info.employeur = await this.getInputValue('input[id="ctl00_CPH_ctl00_patientDetails_txtEmployerNb"]');
+        info.profession = await this.getInputValue('input[id="ctl00_CPH_ctl00_patientDetails_txtOccupation"]');
+        info.etatCivil = await this.getSelectText('#ctl00_CPH_ctl00_patientDetails_ddlMaritalStatus');
+        info.nomJeuneFille = await this.getInputValue('input[id="ctl00_CPH_ctl00_patientDetails_txtMaidenName"]');
+        info.medecinTraitant = await this.getInputValue('input[id="ctl00_CPH_ctl00_patientDetails_txtSentBy"]');
+        info.sexe = await this.getRadioValue([
+            { id: '#ctl00_CPH_ctl00_patientDetails_rbtnMale', label: 'Masculin' },
+            { id: '#ctl00_CPH_ctl00_patientDetails_rbtnFemale', label: 'Féminin' },
+        ]);
+        info.genre = await this.getRadioValue([
+            { id: '#ctl00_CPH_ctl00_patientDetails_rbtnMaleFODA5', label: 'Masculin' },
+            { id: '#ctl00_CPH_ctl00_patientDetails_rbtnFemaleFODA5', label: 'Féminin' },
+            { id: '#ctl00_CPH_ctl00_patientDetails_rbtnDiverseFODA5', label: 'Divers' }
+        ]);
+        try {
+            const chk = this.page.locator('#ctl00_CPH_ctl00_patientDetails_chkNetworkCare').first();
+            if (await chk.count() > 0) {
+                const isChecked = await chk.isChecked().catch(() => false);
+                if (isChecked) {
+                    info.coord = await this.getInputValue('#ctl00_CPH_ctl00_patientDetails_txtNetworkCare');
+                }
+            }
+        } catch { /* ignore */ }
+
+        // Adress info
+        info.titre = await this.getSelectText('#ctl00_CPH_ctl00_patientDetails_ctrlTitle_DropDownListTitres');
+        info.adressCompl = await this.getInputValue('#ctl00_CPH_ctl00_patientDetails_txtAddress1');
+        info.rue = await this.getInputValue('#ctl00_CPH_ctl00_patientDetails_txtAddress2');
+        info.npa = await this.getInputValue('#ctl00_CPH_ctl00_patientDetails_location_TextBoxNPA');
+        info.localite = await this.getInputValue('#ctl00_CPH_ctl00_patientDetails_location_TextBoxVille');
+        info.pays = await this.getSelectText('#ctl00_CPH_ctl00_patientDetails_location_DropDownListPays');
+
+        // Phone numbers
+        info.tel1 = await this.getInputValue('#ctl00_CPH_ctl00_patientDetails_txtPhone1Label');
+        info.noTel1 = await this.getInputValue('#ctl00_CPH_ctl00_patientDetails_txtPhone1');
+        info.tel2 = await this.getInputValue('#ctl00_CPH_ctl00_patientDetails_txtPhone2Label');
+        info.noTel2 = await this.getInputValue('#ctl00_CPH_ctl00_patientDetails_txtPhone2');
+        info.tel3 = await this.getInputValue('#ctl00_CPH_ctl00_patientDetails_txtPhone3Label');
+        info.noTel3 = await this.getInputValue('#ctl00_CPH_ctl00_patientDetails_txtPhone3');
+
+        // Email
+        info.email = await this.getInputValue('#ctl00_CPH_ctl00_patientDetails_txtEmail');
+
+        // SMS notification checkbox
+        try {
+            const smsChk = this.page.locator('#ctl00_CPH_ctl00_patientDetails_chkSMsNotification').first();
+            if (await smsChk.count() > 0) {
+                const isChecked = await smsChk.isChecked().catch(() => false);
+                info.notificationSMS = isChecked ? 'Oui' : 'Non';
+            }
+        } catch { /* ignore */ }
+
+        // Patient status flags
+        info.debiteur = await this.getRadioValue([
+            { id: '#ctl00_CPH_ctl00_patientDetails_rbtnDebtorNo', label: 'Non' },
+            { id: '#ctl00_CPH_ctl00_patientDetails_rbtnDebtorYes', label: 'Oui' }
+        ]);
+        info.contact = await this.getRadioValue([
+            { id: '#ctl00_CPH_ctl00_patientDetails_rbtnContactNo', label: 'Non' },
+            { id: '#ctl00_CPH_ctl00_patientDetails_rbtnContactYes', label: 'Oui' }
+        ]);
+        info.representantLegal = await this.getRadioValue([
+            { id: '#ctl00_CPH_ctl00_patientDetails_rbtnHeadOfGroupNo', label: 'Non' },
+            { id: '#ctl00_CPH_ctl00_patientDetails_rbtnHeadOfGroupYes', label: 'Oui' }
+        ]);
+
+        // Comment textarea
+        info.commentaire = await this.getInputValue('#ctl00_CPH_ctl00_patientDetails_txtComment');
+
+        return info;
+    }
 
     getContext(): FrameLocator | Locator | Page {
         return this.context;

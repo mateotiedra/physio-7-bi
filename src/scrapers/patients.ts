@@ -4,6 +4,8 @@ import { PatientInfo } from '../utils/pdfParser';
 
 async function uploadPatientsData(patients: PatientInfo[]): Promise<void> {
     // Placeholder function to simulate uploading patient data
+    console.log(`Uploading patient data : ${JSON.stringify(patients)}`);
+
 }
 
 async function main() {

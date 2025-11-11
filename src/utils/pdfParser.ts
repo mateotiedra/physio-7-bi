@@ -1,8 +1,8 @@
 import { PDFParse } from 'pdf-parse';
 
 export interface PatientInfo {
-    title?: string,
-    courtesyTitle?: string,
+    titre?: string,
+    titreCourtoisie?: string,
     adressCompl?: string,
     rue?: string,
     npa?: string,
@@ -22,11 +22,13 @@ export interface PatientInfo {
     profession?: string,
     envoyePar?: string,
     derniereSeance?: string,
+    dateDeces?: string,
     patient?: string,
     deb?: string,
     ctct?: string,
     grpSanguin?: string,
     genre?: string,
+    sexe?: string,
     etatCivil?: string,
     noLAMAL?: string,
     assuranceLAMAL?: string,
@@ -44,6 +46,8 @@ export interface PatientInfo {
     inactif?: string,
     type?: string,
     noPatientPourTri?: string
+    medecinTraitant?: string
+    ville?: string,
 }
 
 /**
