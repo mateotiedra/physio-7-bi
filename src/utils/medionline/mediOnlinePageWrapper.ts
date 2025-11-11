@@ -1,7 +1,7 @@
 import { FrameLocator, Locator, Page } from "playwright";
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { MediOnlineError, MediOnlineMultiplePatientsError, MediOnlinePatientNotFoundError, MediOnlineCreateTreatmentUnknownError } from "./medionline.types";
+import { MediOnlineError, MediOnlineMultiplePatientsError, MediOnlinePatientNotFoundError, MediOnlineCreateTreatmentUnknownError, AppointmentInfo } from "./medionline.types";
 import { PatientInfo } from "./medionline.types";
 
 export class MediOnlinePageWrapper {
@@ -282,7 +282,7 @@ export class MediOnlinePageWrapper {
         }
     };
 
-    async scrapeCurrentPatientPage(): Promise<PatientInfo> {
+    async scrapePatientInfos(): Promise<PatientInfo> {
         const info: PatientInfo = {};
 
         // General patient info
@@ -362,6 +362,92 @@ export class MediOnlinePageWrapper {
         info.commentaire = await this.getInputValue('#ctl00_CPH_ctl00_patientDetails_txtComment');
 
         return info;
+    }
+
+    async scrapePatientAppointments(): Promise<AppointmentInfo[]> {
+        await this.page.click('#ctl00_CPH_ctl00_pati_tabs_011_lbtnAppointment');
+
+        await this.page.waitForLoadState('networkidle');
+
+        const iframe = this.page.frameLocator('#ctl00_CPH_ctl00_pati_tabs_011_ctl00_myIframe');
+        const appointmentContainers = await iframe.locator('div.formContainer').all();
+
+        const allAppointments: AppointmentInfo[] = [];
+
+        for (const container of appointmentContainers) {
+            // Extract centre and practitioner from the header link
+            let centre: string | undefined;
+            let practitioner: string | undefined;
+
+            try {
+                // Select the first <a> inside the first <div> of the formContainer
+                const headerLink = container.locator('div').first().locator('a').first();
+                const headerText = await headerLink.textContent();
+                if (headerText) {
+                    // Format: "Charmilles / Yohann Ruggieri"
+                    const cleaned = headerText.trim().replace(/\s+/g, ' ');
+                    const parts = cleaned.split('/').map(p => p.trim());
+                    if (parts.length === 2) {
+                        centre = parts[0];
+                        practitioner = parts[1];
+                    }
+                }
+            } catch (error) {
+                console.log('Failed to parse centre/practitioner from header:', error);
+            }
+
+            // Find all appointment rows in the table (tbody > tr)
+            const rows = await container.locator('table.cdmList tbody tr').all();
+
+            for (const row of rows) {
+                try {
+                    const appointment: AppointmentInfo = {};
+
+                    // Get all td cells in the row
+                    const cells = await row.locator('td.smallText.bordered').all();
+
+                    const dateText = await cells[2].textContent();
+                    if (dateText) {
+                        const trimmed = dateText.trim();
+                        const [datePart, timePart] = trimmed.split(' ');
+                        const [day, month, year] = datePart.split('.');
+                        const isoDate = `${year}-${month}-${day}T${timePart}:00`;
+                        appointment.date = isoDate;
+                    } else {
+                        appointment.date = undefined;
+                    }
+
+                    // Index 3: Status (e.g., "Rdv", "Excusé")
+                    const statusText = await cells[3].textContent();
+                    appointment.status = statusText?.trim();
+
+                    // Index 4: Duration (e.g., "30'")
+                    const durationText = await cells[4].textContent();
+                    appointment.duration = durationText ? parseInt(durationText.trim().replace("'", '')) : undefined;
+
+                    // Index 5: Event name (e.g., "Consultation de suivi 30min")
+                    const eventText = await cells[5].textContent();
+                    appointment.eventName = eventText?.trim();
+
+                    // Index 6: Contact (e.g., "Abazi\nValmire" - name on multiple lines)
+                    const contactText = await cells[6].textContent();
+                    appointment.contact = contactText?.trim().replace(/\s+/g, ' ');
+
+                    // Add centre and practitioner from container header
+                    console.log(centre, practitioner);
+
+                    appointment.centre = centre;
+                    appointment.practitioner = practitioner;
+
+                    allAppointments.push(appointment);
+                } catch (error) {
+                    // Skip rows that fail to parse
+                    console.warn('Failed to parse appointment row:', error);
+                }
+            }
+        }
+
+        return allAppointments;
     }
 
     getContext(): FrameLocator | Locator | Page {

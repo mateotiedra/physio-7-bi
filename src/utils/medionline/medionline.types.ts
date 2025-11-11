@@ -182,3 +182,13 @@ export interface PatientInfo {
     representantLegal?: string,
     commentaire?: string,
 }
+
+export interface AppointmentInfo {
+    date?: string,
+    status?: string,
+    duration?: number,
+    eventName?: string,
+    contact?: string,
+    centre?: string,
+    practitioner?: string,
+}
