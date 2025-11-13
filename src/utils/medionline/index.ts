@@ -7,6 +7,7 @@ import {
     MediOnlineCreateTreatmentUnknownError,
     MediOnlineCreateTreatmentStepError,
     AppointmentInfo,
+    InvoiceInfo,
 } from './medionline.types';
 import { MediOnlinePageWrapper } from './mediOnlinePageWrapper';
 import { config } from '../../config';
@@ -107,14 +108,15 @@ class MediOnlineManager {
 
     async scrapePatientDashboards(
         uploadPatientsData: (patients: PatientInfo[]) => Promise<void>,
-        uploadAppointmentsData: (appointments: AppointmentInfo[]) => Promise<void>
+        uploadAppointmentsData: (appointments: AppointmentInfo[]) => Promise<void>,
+        uploadInvoicesData: (invoices: InvoiceInfo[]) => Promise<void>
     ): Promise<void> {
         if (this.status !== 'connected') {
             throw new MediOnlineError('Cannot query patients when not connected', 'NOT_CONNECTED');
         }
 
         //await this.mpage.searchPatients({ firstName: '', lastName: '', dateOfBirth: '' });
-        await this.mpage.goToPatientDashboard('Valmire', 'Abazi', '');
+        await this.mpage.goToPatientDashboard('Alizadeh', 'Abbas', '');
         let currPageIndex = 1320;
         let currPatientIndex = 0;
 
@@ -123,8 +125,10 @@ class MediOnlineManager {
             const lastPatientOfThePage = true;
             const patientData = await this.mpage.scrapePatientInfos();
             const appointmentsData = await this.mpage.scrapePatientAppointments();
+            const invoicesData = await this.mpage.scrapePatientInvoices(patientData.noAvs!);
             await uploadPatientsData([patientData]);
             await uploadAppointmentsData(appointmentsData);
+            await uploadInvoicesData(invoicesData);
 
             // Try to go to the next patient search page
             if (lastPatientOfThePage) {

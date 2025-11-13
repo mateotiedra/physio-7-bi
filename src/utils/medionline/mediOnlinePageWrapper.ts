@@ -1,7 +1,7 @@
 import { FrameLocator, Locator, Page } from "playwright";
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { MediOnlineError, MediOnlineMultiplePatientsError, MediOnlinePatientNotFoundError, MediOnlineCreateTreatmentUnknownError, AppointmentInfo } from "./medionline.types";
+import { MediOnlineError, MediOnlineMultiplePatientsError, MediOnlinePatientNotFoundError, MediOnlineCreateTreatmentUnknownError, AppointmentInfo, InvoiceInfo } from "./medionline.types";
 import { PatientInfo } from "./medionline.types";
 
 export class MediOnlinePageWrapper {
@@ -433,9 +433,6 @@ export class MediOnlinePageWrapper {
                     const contactText = await cells[6].textContent();
                     appointment.contact = contactText?.trim().replace(/\s+/g, ' ');
 
-                    // Add centre and practitioner from container header
-                    console.log(centre, practitioner);
-
                     appointment.centre = centre;
                     appointment.practitioner = practitioner;
 
@@ -448,6 +445,154 @@ export class MediOnlinePageWrapper {
         }
 
         return allAppointments;
+    }
+
+    async scrapePatientInvoices(patientAVS: string): Promise<InvoiceInfo[]> {
+        await this.page.click('#ctl00_CPH_ctl00_pati_tabs_011_lbtnInvoice');
+
+        await this.page.waitForLoadState('networkidle');
+
+        const iframe = this.page.frameLocator('#ctl00_CPH_ctl00_pati_tabs_011_ctl00_myIframe');
+        const invoiceContainers = await iframe.locator('div[content="true"]').all();
+
+        const allInvoices: InvoiceInfo[] = [];
+
+        for (const container of invoiceContainers) {
+            await container.innerHTML();
+            let centre: string;
+
+            // Extract centre from the parent formContainer header
+            const parentContainer = container.locator('xpath=ancestor::div[contains(@class, "formContainer")]').first();
+            const headerLink = parentContainer.locator('div').first().locator('a').first();
+            centre = (await headerLink.textContent())?.replace(/\s+/g, ' ').trim() || 'inconnu';
+
+            // Find all invoice rows in the table (tbody > tr)
+            const rows = await container.locator('table.cdmList tbody tr').all();
+
+            await this.page.waitForLoadState('networkidle');
+
+
+            for (const row of rows) {
+                try {
+                    const invoice: InvoiceInfo = {};
+
+                    invoice.patientAVS = patientAVS;
+                    invoice.centre = centre;
+
+                    // Click the view invoice button (first td with input image)
+                    const viewButton = row.locator('input[type="image"]').first();
+                    await viewButton.click();
+                    await this.page.waitForLoadState('networkidle');
+
+                    // Wait for the invoice details table to be visible (more efficient than fixed timeout)
+                    await this.page.locator('table td.font10grey').first().waitFor({ state: 'visible', timeout: 10000 });
+
+                    // Helper function to extract value from table by label
+                    const extractValue = async (labelText: string): Promise<string | undefined> => {
+                        try {
+                            // Find all tables with font10grey cells
+                            const allTables = await this.page.locator('table').all();
+                            for (const table of allTables) {
+                                const rows = await table.locator('tr').all();
+                                for (const tr of rows) {
+                                    const cells = await tr.locator('td.font10grey').all();
+                                    if (cells.length >= 2) {
+                                        const label = await cells[0].textContent();
+                                        if (label?.trim() === labelText) {
+                                            const value = await cells[1].textContent();
+                                            return value?.trim();
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (error) {
+                            console.warn(`Failed to extract ${labelText}:`, error);
+                        }
+                        return undefined;
+                    };
+
+                    // Extract all fields
+                    const dateText = await extractValue('Date facture');
+                    if (dateText) {
+                        const [day, month, year] = dateText.split('.');
+                        invoice.date = `${year}-${month}-${day}`;
+                    }
+
+                    invoice.invoiceNumber = await extractValue('N° facture');
+                    invoice.reimbursmentType = await extractValue('Type de remb.');
+                    invoice.law = await extractValue('Loi');
+                    invoice.treatmentType = await extractValue('Motif traitement');
+                    invoice.noAssuredCard = await extractValue('N° carte d\'assuré');
+
+                    const startDateText = await extractValue('Début traitement');
+                    if (startDateText) {
+                        const [day, month, year] = startDateText.split('.');
+                        invoice.treatmentStartDate = `${year}-${month}-${day}`;
+                    }
+
+                    const endDateText = await extractValue('Fin traitement');
+                    if (endDateText) {
+                        const [day, month, year] = endDateText.split('.');
+                        invoice.treatmentEndDate = `${year}-${month}-${day}`;
+                    }
+
+                    invoice.prestationLocation = await extractValue('Lieu fourn. prest.');
+                    invoice.prescribingDoctor = await extractValue('Nom');
+
+                    // Extract address - get both lines separately
+                    const adressLine1 = await extractValue('Adresse');
+                    // Find the row with "Adresse" and get the next row's second cell
+                    try {
+                        const allTables = await this.page.locator('table').all();
+                        for (const table of allTables) {
+                            const rows = await table.locator('tr').all();
+                            for (let i = 0; i < rows.length - 1; i++) {
+                                const cells = await rows[i].locator('td.font10grey').all();
+                                if (cells.length >= 2) {
+                                    const label = await cells[0].textContent();
+                                    if (label?.trim() === 'Adresse') {
+                                        // Get the next row's second cell (city)
+                                        const nextCells = await rows[i + 1].locator('td.font10grey').all();
+                                        if (nextCells.length >= 2) {
+                                            const adressLine2 = await nextCells[1].textContent();
+                                            invoice.prescribingDoctorAdress = adressLine1
+                                                ? `${adressLine1} ${adressLine2?.trim() || ''}`.trim()
+                                                : adressLine2?.trim();
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        // Fallback: just use first line if we can't get the second
+                        invoice.prescribingDoctorAdress = adressLine1;
+                    }
+
+                    allInvoices.push(invoice);
+
+                    // Go back to the invoice list (click back or navigate)
+                    // This depends on the UI - you might need to click a back button
+                    await this.goBack();
+                    await this.page.waitForLoadState('networkidle');
+
+                } catch (error) {
+                    console.warn('Failed to parse invoice row:', error);
+                    // Try to go back if we're stuck in detail view
+                    try {
+                        await this.goBack();
+                        await this.page.waitForLoadState('networkidle');
+                    } catch { }
+                }
+            }
+        }
+
+        return allInvoices;
+    }
+
+    async goBack(): Promise<void> {
+        await this.page.click('#ctl00_back');
+        await this.page.waitForLoadState('networkidle');
     }
 
     getContext(): FrameLocator | Locator | Page {

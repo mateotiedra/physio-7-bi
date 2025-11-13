@@ -192,3 +192,33 @@ export interface AppointmentInfo {
     centre?: string,
     practitioner?: string,
 }
+
+export interface PrestationsInfo {
+    date?: string,
+    number?: number,
+    positionNumber?: string,
+    description?: string,
+    unitValue?: number
+    ptNbr?: number,
+    ptValue?: number,
+    amount?: number,
+}
+
+export interface InvoiceInfo {
+    centre?: string,
+    date?: string,
+    invoiceNumber?: string,
+    noAssuredPerson?: string,
+    reimbursmentType?: string,
+    law?: string,
+    treatmentType?: string,
+    noAssuredCard?: string,
+    treatmentStartDate?: string,
+    treatmentEndDate?: string,
+    prestationLocation?: string,
+    prescribingDoctor?: string,
+    prescribingDoctorAdress?: string,
+    totalAmount?: number,
+    prestations?: PrestationsInfo[],
+    patientAVS?: string,
+}
