@@ -449,11 +449,12 @@ export class MediOnlinePageWrapper {
 
     async scrapePatientInvoices(patientAVS: string): Promise<InvoiceInfo[]> {
         await this.page.click('#ctl00_CPH_ctl00_pati_tabs_011_lbtnInvoice');
-
-        await this.page.waitForLoadState('networkidle');
+        await this.page.waitForTimeout(1000);
 
         const iframe = this.page.frameLocator('#ctl00_CPH_ctl00_pati_tabs_011_ctl00_myIframe');
-        const invoiceContainers = await iframe.locator('div[class="formContainerSwitch"]').all();
+        await iframe.locator('div.formContainer').waitFor({ timeout: 1000 });
+        await iframe.locator('div[content="true"]').first().waitFor({ state: 'visible', timeout: 20000 });
+        const invoiceContainers = await iframe.locator('div.formContainer').all();
 
         const allInvoices: InvoiceInfo[] = [];
 
@@ -462,8 +463,7 @@ export class MediOnlinePageWrapper {
             let centre: string;
 
             // Extract centre from the parent formContainer header
-            const parentContainer = container.locator('xpath=ancestor::div[contains(@class, "formContainer")]').first();
-            const headerLink = parentContainer.locator('div').first().locator('a').first();
+            const headerLink = container.locator('div').first().locator('a').first();
             centre = (await headerLink.textContent())?.replace(/\s+/g, ' ').trim() || 'inconnu';
 
             // Find all invoice rows in the table (tbody > tr)
@@ -481,13 +481,6 @@ export class MediOnlinePageWrapper {
                     // Click the view invoice button - specifically the one with icon-voir.gif (not calendar/appointment buttons)
                     await row.waitFor({ state: 'visible', timeout: 20000 });
                     const viewButton = row.locator('input[type="image"]').first();
-                    const buttonCount = await viewButton.count();
-
-                    if (buttonCount === 0) {
-                        console.warn('No view invoice button found in this row, skipping...');
-                        continue; // Skip this row if no view button found
-                    }
-
                     await viewButton.waitFor({ state: 'visible', timeout: 20000 });
                     await viewButton.click();
                     await this.page.waitForLoadState('networkidle');

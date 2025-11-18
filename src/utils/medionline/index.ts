@@ -147,4 +147,4 @@ class MediOnlineManager {
     }
 }
 
-export const mediOnline = new MediOnlineManager(false);
+export const mediOnline = new MediOnlineManager(false, 20000);
