@@ -453,7 +453,7 @@ export class MediOnlinePageWrapper {
         await this.page.waitForLoadState('networkidle');
 
         const iframe = this.page.frameLocator('#ctl00_CPH_ctl00_pati_tabs_011_ctl00_myIframe');
-        const invoiceContainers = await iframe.locator('div[content="true"]').all();
+        const invoiceContainers = await iframe.locator('div[class="formContainerSwitch"]').all();
 
         const allInvoices: InvoiceInfo[] = [];
 
@@ -577,18 +577,15 @@ export class MediOnlinePageWrapper {
                         invoice.prescribingDoctorAdress = adressLine1;
                     }
 
-                    console.log('Start scraping services');
-
-
-                    // Gather all data about services (prestations)
+                    // Gather all data about services
                     try {
                         const services: ServicesInfo[] = [];
 
-                        // Find the prestations table by looking for the header with class 'presta-head-table'
+                        // Find the services table by looking for the header with class 'presta-head-table'
                         const prestaTable = this.page.locator('#ctl00_CPH_ctl00_ctl11_TableInfo').locator('table').first();
                         await prestaTable.innerHTML();
 
-                        // Found the prestations table, now get all data rows
+                        // Found the services table, now get all data rows
                         const servicesRows = await prestaTable.locator('tbody tr').all();
 
                         for (const serviceRow of servicesRows) {
@@ -653,10 +650,10 @@ export class MediOnlinePageWrapper {
 
                     console.log('Finished scraping services');
 
+                    invoice.totalAmount = parseFloat(await this.page.locator('#ctl00_CPH_ctl00_ctl12_TableInfo').locator('td.font10grey').last().innerText());
+
                     allInvoices.push(invoice);
 
-                    // Go back to the invoice list (click back or navigate)
-                    // This depends on the UI - you might need to click a back button
                     await this.goBack();
                     await this.page.waitForLoadState('networkidle');
 
