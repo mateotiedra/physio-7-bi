@@ -1,7 +1,7 @@
 import { FrameLocator, Locator, Page } from "playwright";
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { MediOnlineError, MediOnlineMultiplePatientsError, MediOnlinePatientNotFoundError, MediOnlineCreateTreatmentUnknownError, AppointmentInfo, InvoiceInfo } from "./medionline.types";
+import { MediOnlineError, MediOnlineMultiplePatientsError, MediOnlinePatientNotFoundError, MediOnlineCreateTreatmentUnknownError, AppointmentInfo, InvoiceInfo, ServicesInfo } from "./medionline.types";
 import { PatientInfo } from "./medionline.types";
 
 export class MediOnlinePageWrapper {
@@ -471,7 +471,6 @@ export class MediOnlinePageWrapper {
 
             await this.page.waitForLoadState('networkidle');
 
-
             for (const row of rows) {
                 try {
                     const invoice: InvoiceInfo = {};
@@ -479,13 +478,22 @@ export class MediOnlinePageWrapper {
                     invoice.patientAVS = patientAVS;
                     invoice.centre = centre;
 
-                    // Click the view invoice button (first td with input image)
+                    // Click the view invoice button - specifically the one with icon-voir.gif (not calendar/appointment buttons)
+                    await row.waitFor({ state: 'visible', timeout: 20000 });
                     const viewButton = row.locator('input[type="image"]').first();
+                    const buttonCount = await viewButton.count();
+
+                    if (buttonCount === 0) {
+                        console.warn('No view invoice button found in this row, skipping...');
+                        continue; // Skip this row if no view button found
+                    }
+
+                    await viewButton.waitFor({ state: 'visible', timeout: 20000 });
                     await viewButton.click();
                     await this.page.waitForLoadState('networkidle');
 
-                    // Wait for the invoice details table to be visible (more efficient than fixed timeout)
-                    await this.page.locator('table td.font10grey').first().waitFor({ state: 'visible', timeout: 10000 });
+                    // Wait for the invoice details table to be visible - with graceful fallback
+                    await this.page.locator('table td.font10grey').first().waitFor({ state: 'visible', timeout: 20000 });
 
                     // Helper function to extract value from table by label
                     const extractValue = async (labelText: string): Promise<string | undefined> => {
@@ -568,6 +576,82 @@ export class MediOnlinePageWrapper {
                         // Fallback: just use first line if we can't get the second
                         invoice.prescribingDoctorAdress = adressLine1;
                     }
+
+                    console.log('Start scraping services');
+
+
+                    // Gather all data about services (prestations)
+                    try {
+                        const services: ServicesInfo[] = [];
+
+                        // Find the prestations table by looking for the header with class 'presta-head-table'
+                        const prestaTable = this.page.locator('#ctl00_CPH_ctl00_ctl11_TableInfo').locator('table').first();
+                        await prestaTable.innerHTML();
+
+                        // Found the prestations table, now get all data rows
+                        const servicesRows = await prestaTable.locator('tbody tr').all();
+
+                        for (const serviceRow of servicesRows) {
+                            try {
+                                // Skip header row
+                                const isHeader = await serviceRow.locator('td.presta-head-table').count() > 0;
+                                if (isHeader) continue;
+
+                                const cells = await serviceRow.locator('td').all();
+
+                                if (cells.length >= 13) {
+                                    const service: ServicesInfo = {};
+
+                                    // Index 1: Date (e.g., "15.02.2023")
+                                    const dateText = await cells[1].textContent();
+                                    if (dateText) {
+                                        const trimmed = dateText.trim();
+                                        const [day, month, year] = trimmed.split('.');
+                                        service.date = `${year}-${month}-${day}`;
+                                    }
+
+                                    // Index 2: Number (e.g., "1.00")
+                                    const numberText = await cells[2].textContent();
+                                    service.number = numberText ? parseFloat(numberText.trim()) : undefined;
+
+                                    // Index 4: Position Number (e.g., "7301")
+                                    const positionText = await cells[4].textContent();
+                                    service.positionNumber = positionText?.trim();
+
+                                    // Index 5: Description (e.g., "Forfait par séance individuelle pour physiothérapie générale")
+                                    const descText = await cells[5].textContent();
+                                    service.description = descText?.trim();
+
+                                    // Index 8: Unit Value (e.g., "47.04")
+                                    const unitValueText = await cells[8].textContent();
+                                    service.unitValue = unitValueText ? parseFloat(unitValueText.trim()) : undefined;
+
+                                    // Index 9: Pt Nbr (e.g., "48.00")
+                                    const ptNbrText = await cells[9].textContent();
+                                    service.ptNbr = ptNbrText ? parseFloat(ptNbrText.trim()) : undefined;
+
+                                    // Index 11: Pt Value (e.g., "0.98")
+                                    const ptValueText = await cells[11].textContent();
+                                    service.ptValue = ptValueText ? parseFloat(ptValueText.trim()) : undefined;
+
+                                    // Index 12: Amount (e.g., "47.04")
+                                    const amountText = await cells[12].textContent();
+                                    service.amount = amountText ? parseFloat(amountText.trim()) : undefined;
+
+                                    services.push(service);
+                                }
+                            } catch (rowError) {
+                                console.warn('Failed to parse service row:', rowError);
+                            }
+                        }
+
+                        invoice.services = services.length > 0 ? services : undefined;
+                    } catch (error) {
+                        console.warn('Failed to extract services:', error);
+                        invoice.services = undefined;
+                    }
+
+                    console.log('Finished scraping services');
 
                     allInvoices.push(invoice);
 

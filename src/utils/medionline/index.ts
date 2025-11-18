@@ -126,6 +126,7 @@ class MediOnlineManager {
             const patientData = await this.mpage.scrapePatientInfos();
             const appointmentsData = await this.mpage.scrapePatientAppointments();
             const invoicesData = await this.mpage.scrapePatientInvoices(patientData.noAvs!);
+            await this.mpage.goBack();
             await uploadPatientsData([patientData]);
             await uploadAppointmentsData(appointmentsData);
             await uploadInvoicesData(invoicesData);

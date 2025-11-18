@@ -193,7 +193,7 @@ export interface AppointmentInfo {
     practitioner?: string,
 }
 
-export interface PrestationsInfo {
+export interface ServicesInfo {
     date?: string,
     number?: number,
     positionNumber?: string,
@@ -219,6 +219,6 @@ export interface InvoiceInfo {
     prescribingDoctor?: string,
     prescribingDoctorAdress?: string,
     totalAmount?: number,
-    prestations?: PrestationsInfo[],
+    services?: ServicesInfo[],
     patientAVS?: string,
 }

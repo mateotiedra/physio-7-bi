@@ -37,15 +37,15 @@ async function uploadInvoicesData(invoices: InvoiceInfo[]): Promise<void> {
         console.log(`Doctor Address: ${invoice.prescribingDoctorAdress || 'N/A'}`);
         console.log(`Total Amount: ${invoice.totalAmount || 'N/A'}`);
 
-        if (invoice.prestations && invoice.prestations.length > 0) {
-            console.log(`\nPrestations (${invoice.prestations.length}):`);
-            invoice.prestations.forEach((prestation, prestIndex) => {
-                console.log(`  [${prestIndex + 1}] Date: ${prestation.date || 'N/A'}, Number: ${prestation.number || 'N/A'}, Position: ${prestation.positionNumber || 'N/A'}`);
-                console.log(`      Description: ${prestation.description || 'N/A'}`);
-                console.log(`      Unit Value: ${prestation.unitValue || 'N/A'}, Pt Nbr: ${prestation.ptNbr || 'N/A'}, Pt Value: ${prestation.ptValue || 'N/A'}, Amount: ${prestation.amount || 'N/A'}`);
+        if (invoice.services && invoice.services.length > 0) {
+            console.log(`\nServices (${invoice.services.length}):`);
+            invoice.services.forEach((service, serviceIndex) => {
+                console.log(`  [${serviceIndex + 1}] Date: ${service.date || 'N/A'}, Number: ${service.number || 'N/A'}, Position: ${service.positionNumber || 'N/A'}`);
+                console.log(`      Description: ${service.description || 'N/A'}`);
+                console.log(`      Unit Value: ${service.unitValue || 'N/A'}, Pt Nbr: ${service.ptNbr || 'N/A'}, Pt Value: ${service.ptValue || 'N/A'}, Amount: ${service.amount || 'N/A'}`);
             });
         } else {
-            console.log(`\nPrestations: None`);
+            console.log(`\nServices: None`);
         }
     });
     console.log(`\n========================================\n`);
