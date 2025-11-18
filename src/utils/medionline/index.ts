@@ -115,14 +115,13 @@ class MediOnlineManager {
             throw new MediOnlineError('Cannot query patients when not connected', 'NOT_CONNECTED');
         }
 
-        //await this.mpage.searchPatients({ firstName: '', lastName: '', dateOfBirth: '' });
-        await this.mpage.goToPatientDashboard('Alizadeh', 'Abbas', '');
-        let currPageIndex = 1320;
+        await this.mpage.searchPatients({ firstName: '', lastName: '', dateOfBirth: '' });
+        //await this.mpage.goToPatientDashboard('Alizadeh', 'Abbas', '');
+        let currPageIndex = 0;
         let currPatientIndex = 0;
 
         while (true) {
-            //const lastPatientOfThePage = await this.mpage.goToPatientInfoPage(currPatientIndex);
-            const lastPatientOfThePage = true;
+            const lastPatientOfThePage = await this.mpage.goToPatientInfoPage(currPatientIndex);
             const patientData = await this.mpage.scrapePatientInfos();
             const appointmentsData = await this.mpage.scrapePatientAppointments();
             const invoicesData = await this.mpage.scrapePatientInvoices(patientData.noAvs!);

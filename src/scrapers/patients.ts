@@ -5,17 +5,15 @@ import { AppointmentInfo, InvoiceInfo } from '../utils/medionline/medionline.typ
 
 async function uploadPatientsData(patients: PatientInfo[]): Promise<void> {
     // Placeholder function to simulate uploading patient data
-    //console.log(`Uploading patient data : ${JSON.stringify(patients)}`);
-
+    console.log(`Uploading patient data : ${JSON.stringify(patients)}`);
 }
 
 async function uploadAppointmentsData(appointments: AppointmentInfo[]): Promise<void> {
     // Placeholder function to simulate uploading appointment data
-    /* console.log(`Uploading ${appointments.length} appointment data:`);
+    console.log(`Uploading ${appointments.length} appointment data:`);
     appointments.forEach(appointment => {
         console.log(JSON.stringify(appointment));
-    }); */
-
+    });
 }
 
 async function uploadInvoicesData(invoices: InvoiceInfo[]): Promise<void> {
