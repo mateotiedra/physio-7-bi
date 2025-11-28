@@ -17,6 +17,7 @@
     "build": "tsc"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.86.0",
     "@types/pdf-parse": "^1.1.5",
     "dotenv": "^17.2.3",
     "pdf-parse": "^2.4.5",
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.10.0",
+    "supabase": "^2.63.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }

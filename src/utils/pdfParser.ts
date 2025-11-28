@@ -1,54 +1,6 @@
 import { PDFParse } from 'pdf-parse';
+import { PatientInfo } from './medionline/medionline.types';
 
-export interface PatientInfo {
-    titre?: string,
-    titreCourtoisie?: string,
-    adressCompl?: string,
-    rue?: string,
-    npa?: string,
-    localite?: string,
-    tel1?: string,
-    noTel1?: string,
-    tel2?: string,
-    noTel2?: string,
-    tel3?: string,
-    dob?: string,
-    noPatient?: string,
-    employeur?: string,
-    noAvs?: string,
-    nomJeuneFille?: string,
-    info?: string,
-    nationalite?: string,
-    profession?: string,
-    envoyePar?: string,
-    derniereSeance?: string,
-    dateDeces?: string,
-    patient?: string,
-    deb?: string,
-    ctct?: string,
-    grpSanguin?: string,
-    genre?: string,
-    sexe?: string,
-    etatCivil?: string,
-    noLAMAL?: string,
-    assuranceLAMAL?: string,
-    noLAA?: string,
-    assuranceLAA?: string,
-    noLCA?: string,
-    assuranceLCA?: string,
-    noLAM?: string,
-    assuranceLAM?: string,
-    noLAI?: string,
-    assuranceLAI?: string,
-    coord?: string,
-    langue?: string,
-    compte?: string,
-    inactif?: string,
-    type?: string,
-    noPatientPourTri?: string
-    medecinTraitant?: string
-    ville?: string,
-}
 
 /**
  * Parse a patient info PDF and extract structured data

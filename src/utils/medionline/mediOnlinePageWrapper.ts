@@ -194,8 +194,18 @@ export class MediOnlinePageWrapper {
         const nextPatientButtonExists = await this.page.locator(`input[id="ctl00_CPH_ctl00_PatientSearchResult_GridView1_ctl${(patientIndex + 4).toString().padStart(2, '0')}_chkSelect"]`).count() > 0;
         const lastPatientOfThePage = !nextPatientButtonExists;
 
-        // Select the patient
-        await this.page.click(`input[id="ctl00_CPH_ctl00_PatientSearchResult_GridView1_ctl${(patientIndex + 3).toString().padStart(2, '0')}_btnEdit"]`);
+        // Check if the patient at patientIndex exists (or is it a tiers payant row?)
+        let accessPatientInfoButton;
+        try {
+            accessPatientInfoButton = this.page.locator(`input[id="ctl00_CPH_ctl00_PatientSearchResult_GridView1_ctl${(patientIndex + 3).toString().padStart(2, '0')}_btnEdit"]`);
+            await accessPatientInfoButton.waitFor({ timeout: 5000 });
+            if (await accessPatientInfoButton.count() === 0) {
+                throw new Error('Patient edit button not found (might be a tiers payant row)');
+            }
+        } catch (error) {
+            throw new MediOnlineError(`No patient found at index ${patientIndex}`, 'TIERS_PATIENT_ROW');
+        }
+        await accessPatientInfoButton.click();
 
         return lastPatientOfThePage;
     }
@@ -286,6 +296,8 @@ export class MediOnlinePageWrapper {
         const info: PatientInfo = {};
 
         // General patient info
+        info.nom = await this.getInputValue('input[id="ctl00_CPH_ctl00_patientDetails_txtLastName"]');
+        info.prenom = await this.getInputValue('input[id="ctl00_CPH_ctl00_patientDetails_txtFirstName"]');
         info.noPatient = await this.getInputValue('input[id="ctl00_CPH_ctl00_patientDetails_txtNumber"]');
         info.langue = await this.getSelectText('#ctl00_CPH_ctl00_patientDetails_ddlLanguage');
         info.nationalite = await this.getSelectText('#ctl00_CPH_ctl00_patientDetails_ddlNationality');

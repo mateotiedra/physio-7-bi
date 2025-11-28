@@ -148,6 +148,8 @@ export class MediOnlineCentreError extends MediOnlineCreateTreatmentStepError {
 
 export interface PatientInfo {
     noPatient?: string,
+    prenom?: string,
+    nom?: string,
     titre?: string,
     titreCourtoisie?: string,
     adressCompl?: string,

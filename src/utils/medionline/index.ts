@@ -8,10 +8,10 @@ import {
     MediOnlineCreateTreatmentStepError,
     AppointmentInfo,
     InvoiceInfo,
+    PatientInfo,
 } from './medionline.types';
 import { MediOnlinePageWrapper } from './mediOnlinePageWrapper';
 import { config } from '../../config';
-import { parsePatientsPdf, PatientInfo } from '../pdfParser';
 
 
 class MediOnlineManager {
@@ -107,9 +107,9 @@ class MediOnlineManager {
     }
 
     async scrapePatientDashboards(
-        uploadPatientsData: (patients: PatientInfo[]) => Promise<void>,
-        uploadAppointmentsData: (appointments: AppointmentInfo[]) => Promise<void>,
-        uploadInvoicesData: (invoices: InvoiceInfo[]) => Promise<void>
+        uploadPatientsData: (patients: PatientInfo[]) => Promise<string>,
+        uploadAppointmentsData: (patientId: string, appointments: AppointmentInfo[]) => Promise<void>,
+        uploadInvoicesData: (patientId: string, invoices: InvoiceInfo[]) => Promise<void>
     ): Promise<void> {
         if (this.status !== 'connected') {
             throw new MediOnlineError('Cannot query patients when not connected', 'NOT_CONNECTED');
@@ -118,17 +118,26 @@ class MediOnlineManager {
         await this.mpage.searchPatients({ firstName: '', lastName: '', dateOfBirth: '' });
         //await this.mpage.goToPatientDashboard('Alizadeh', 'Abbas', '');
         let currPageIndex = 0;
-        let currPatientIndex = 0;
+        let currPatientIndex = 1;
 
         while (true) {
-            const lastPatientOfThePage = await this.mpage.goToPatientInfoPage(currPatientIndex);
+            let lastPatientOfThePage;
+            try {
+                lastPatientOfThePage = await this.mpage.goToPatientInfoPage(currPatientIndex);
+            } catch (error) {
+                if (error instanceof MediOnlineError && error.code === 'TIERS_PATIENT_ROW') {
+                    currPatientIndex++;
+                    continue;
+                }
+                throw error;
+            }
             const patientData = await this.mpage.scrapePatientInfos();
+            const patientId = await uploadPatientsData([patientData]);
             const appointmentsData = await this.mpage.scrapePatientAppointments();
             const invoicesData = await this.mpage.scrapePatientInvoices(patientData.noAvs!);
             await this.mpage.goBack();
-            await uploadPatientsData([patientData]);
-            await uploadAppointmentsData(appointmentsData);
-            await uploadInvoicesData(invoicesData);
+            await uploadAppointmentsData(patientId, appointmentsData);
+            await uploadInvoicesData(patientId, invoicesData);
 
             // Try to go to the next patient search page
             if (lastPatientOfThePage) {
