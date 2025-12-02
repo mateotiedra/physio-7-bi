@@ -372,7 +372,7 @@ export class MediOnlinePageWrapper {
                     }
                 }
             } catch (error) {
-                console.log('Failed to parse centre/practitioner from header:', error);
+                throw new MediOnlineError(`Failed to parse centre/practitioner from header: ${error}`, 'PARSE_ERROR');
             }
 
             // Find all appointment rows in the table (tbody > tr)
@@ -417,8 +417,7 @@ export class MediOnlinePageWrapper {
 
                     allAppointments.push(appointment);
                 } catch (error) {
-                    // Skip rows that fail to parse
-                    console.warn('Failed to parse appointment row:', error);
+                    throw new MediOnlineError(`Failed to parse appointment row: ${error}`, 'APPOINTMENT_ROW_PARSE_ERROR');
                 }
             }
         }
@@ -518,7 +517,7 @@ export class MediOnlinePageWrapper {
                                 }
                             }
                         } catch (error) {
-                            console.warn(`Failed to extract ${labelText}:`, error);
+                            throw new MediOnlineError(`Failed to extract ${labelText}: ${error}`, 'EXTRACT_VALUE_ERROR');
                         }
                         return undefined;
                     };
@@ -651,14 +650,13 @@ export class MediOnlinePageWrapper {
                                     services.push(service);
                                 }
                             } catch (rowError) {
-                                console.warn('Failed to parse service row:', rowError);
+                                throw new MediOnlineError(`Failed to parse service row: ${rowError}`, 'SERVICE_ROW_PARSE_ERROR');
                             }
                         }
 
                         invoice.services = services.length > 0 ? services : undefined;
                     } catch (error) {
-                        console.warn('Failed to extract services:', error);
-                        invoice.services = undefined;
+                        throw new MediOnlineError(`Failed to extract services: ${error}`, 'EXTRACT_SERVICES_ERROR');
                     }
 
                     // Extract total amount
@@ -677,16 +675,14 @@ export class MediOnlinePageWrapper {
                                 //console.log(`Total amount text: "${totalText}"`);
                                 invoice.totalAmount = parseFloat(totalText);
                             } else {
-                                console.warn('No td.font10grey cells found in total table');
-                                invoice.totalAmount = undefined;
+                                throw new MediOnlineError('No td.font10grey cells found in total table', 'TOTAL_AMOUNT_CELLS_NOT_FOUND');
                             }
                         } else {
                             invoice.totalAmount = undefined;
                             throw new Error('No elements with TableInfo in id found');
                         }
                     } catch (error) {
-                        console.warn(`Failed to extract total amount for the invoice ${invoice.invoiceNumber} - ${invoice.centre}: ${error}`);
-                        invoice.totalAmount = undefined;
+                        throw new MediOnlineError(`Failed to extract total amount for the invoice ${invoice.invoiceNumber} - ${invoice.centre}: ${error}`, 'EXTRACT_TOTAL_AMOUNT_ERROR');
                     }
 
                     allInvoices.push(invoice);
@@ -697,12 +693,8 @@ export class MediOnlinePageWrapper {
                     await openCenterDivIfCollapsed();
 
                 } catch (error) {
-                    console.warn('Failed to parse invoice row:', error);
+                    throw new MediOnlineError(`Failed to parse invoice row: ${(error instanceof Error) ? error.message : error}`, 'INVOICE_ROW_PARSE_ERROR');
                     // Try to go back if we're stuck in detail view
-                    try {
-                        await this.goBack();
-                        await this.page.waitForLoadState('networkidle');
-                    } catch { }
                 }
             }
         }
