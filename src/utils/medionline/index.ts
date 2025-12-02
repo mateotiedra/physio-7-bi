@@ -118,8 +118,8 @@ class MediOnlineManager {
         await this.mpage.searchPatients({ firstName: '', lastName: '', dateOfBirth: '' });
         //await this.mpage.goToPatientDashboard('Alizadeh', 'Abbas', '');
 
-        let currPageIndex = 1;
-        let currPatientIndex = 3;
+        let currPageIndex = parseInt(process.env.CURR_PAGE_INDEX || '1', 10);
+        let currPatientIndex = parseInt(process.env.CURR_PATIENT_INDEX || '0', 10);
 
         while (true) {
             await this.mpage.goToPatientSearchPage(currPageIndex);
@@ -160,4 +160,4 @@ class MediOnlineManager {
     }
 }
 
-export const mediOnline = new MediOnlineManager(false, 20000);
+export const mediOnline = new MediOnlineManager(process.env.HEADLESS_MODE === 'true', 40000);

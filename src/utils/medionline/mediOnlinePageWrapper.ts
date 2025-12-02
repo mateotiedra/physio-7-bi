@@ -129,65 +129,6 @@ export class MediOnlinePageWrapper {
         await this.page.waitForLoadState('networkidle');
     }
 
-    async downloadPatientsPageDoc(): Promise<string> {
-        // Select all patients on the current page & access their pdf export page
-        for (let i = 3; i <= 27; i++) {
-            try {
-                await this.page.click(`input[id="ctl00_CPH_ctl00_PatientSearchResult_GridView1_ctl${i.toString().padStart(2, '0')}_chkSelect"]`, { timeout: 90000 });
-            } catch {
-                break;
-            }
-        }
-
-        // Go to export page
-        await this.page.click('input[name="ctl00$CPH$ctl00$PatientSearchResult$GridView1$ctl29$ctl02"]', { timeout: 90000 });
-        await this.page.waitForLoadState('networkidle');
-
-        // Open PDF in a new page (PDF viewer)
-        const pdfViewerPagePromise = this.page.context().waitForEvent('page', { timeout: 90000 });
-        await this.page.click('a[id="ctl00_CPH_ctl00_btnPDF"]');
-        const pdfViewerPage = await pdfViewerPagePromise;
-        await pdfViewerPage.waitForLoadState('networkidle');
-
-        const pdfPath = await this.downloadPdfFromUrl(pdfViewerPage);
-        return pdfPath;
-    }
-
-    async downloadPdfFromUrl(pdfPage: Page): Promise<string> {
-        // Attempt to download the PDF content from the viewer page URL
-        try {
-            const pdfUrl = pdfPage.url();
-
-            // Use the page's request context to fetch the binary PDF
-            // Note: page.request is available in recent Playwright versions.
-            const response = await (pdfPage.request).get(pdfUrl, { timeout: 90000 });
-            if (!response.ok()) {
-                throw new Error(`Failed to fetch PDF. Status: ${response.status()}`);
-            }
-
-            const buffer = await response.body();
-
-            // Ensure downloads directory exists
-            const downloadsDir = path.join(process.cwd(), 'downloads');
-            await fs.mkdir(downloadsDir, { recursive: true });
-
-            const fileName = `patients_${Date.now()}.pdf`;
-            const filePath = path.join(downloadsDir, fileName);
-
-            await fs.writeFile(filePath, buffer);
-
-            // Close the viewer page to free resources
-            try { await pdfPage.close(); } catch { }
-
-            return filePath;
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Unknown error while downloading PDF';
-            // Close the viewer page if it's still open
-            try { await pdfPage.close(); } catch { }
-            throw new MediOnlineError(`Failed to download PDF: ${errorMessage}`, 'DOWNLOAD_ERROR');
-        }
-    }
-
     private async isTiersPayantRow(patientIndex: number): Promise<boolean> {
         try {
             let accessPatientInfoButton = this.page.locator(`input[id="ctl00_CPH_ctl00_PatientSearchResult_GridView1_ctl${(patientIndex + 3).toString().padStart(2, '0')}_btnEdit"]`);
@@ -389,7 +330,7 @@ export class MediOnlinePageWrapper {
         // Wait for iframe to be fully loaded
         await this.page.waitForTimeout(1000);
         await this.page.waitForLoadState('networkidle');
-        await iframe.locator('body').waitFor({ state: 'visible', timeout: 10000 });
+        await iframe.locator('body').waitFor({ state: 'visible' });
 
         const appointmentContainers = await iframe.locator('div.formContainer').all();
 
@@ -471,11 +412,11 @@ export class MediOnlinePageWrapper {
     async scrapePatientInvoices(patientAVS: string): Promise<InvoiceInfo[]> {
         await this.page.click('#ctl00_CPH_ctl00_pati_tabs_011_lbtnInvoice');
         await this.page.waitForTimeout(1000);
+        await this.page.waitForLoadState('networkidle');
 
         const iframe = this.page.frameLocator('#ctl00_CPH_ctl00_pati_tabs_011_ctl00_myIframe');
         // Wait for iframe to be fully loaded
-        await this.page.waitForTimeout(2000);
-        await iframe.locator('body').waitFor({ state: 'visible', timeout: 10000 });
+        await iframe.locator('body').waitFor({ state: 'visible' });
 
         // Check if there are no invoices (span with "Aucune facture" message)
         const noInvoiceSpan = iframe.locator('span#ctl00_MainContentPlaceHolder_lvAccount_ctrl0_lblNoInvoice');
@@ -483,8 +424,7 @@ export class MediOnlinePageWrapper {
             console.log('No invoices found for this patient');
             return [];
         }
-        await iframe.locator('div.formContainer').waitFor({ timeout: 10000 });
-        await iframe.locator('div[content="true"]').first().waitFor({ state: 'visible', timeout: 20000 });
+        await iframe.locator('div[content="true"]').first().waitFor({ state: 'visible' });
         const invoiceContainers = await iframe.locator('div.formContainer').all();
 
         const allInvoices: InvoiceInfo[] = [];
@@ -510,14 +450,14 @@ export class MediOnlinePageWrapper {
                     invoice.centre = centre;
 
                     // Click the view invoice button - specifically the one with icon-voir.gif (not calendar/appointment buttons)
-                    await row.waitFor({ state: 'visible', timeout: 20000 });
+                    await row.waitFor({ state: 'visible' });
                     const viewButton = row.locator('input[type="image"]').first();
-                    await viewButton.waitFor({ state: 'visible', timeout: 20000 });
+                    await viewButton.waitFor({ state: 'visible' });
                     await viewButton.click();
                     await this.page.waitForLoadState('networkidle');
 
                     // Wait for the invoice details table to be visible - with graceful fallback
-                    await this.page.locator('table td.font10grey').first().waitFor({ state: 'visible', timeout: 20000 });
+                    await this.page.locator('table td.font10grey').first().waitFor({ state: 'visible' });
 
                     // Helper function to extract value from table by label
                     const extractValue = async (labelText: string): Promise<string | undefined> => {
@@ -681,7 +621,35 @@ export class MediOnlinePageWrapper {
                         invoice.services = undefined;
                     }
 
-                    invoice.totalAmount = parseFloat(await this.page.locator('#ctl00_CPH_ctl00_ctl12_TableInfo').locator('td.font10grey').last().innerText());
+                    // Extract total amount
+                    try {
+                        console.log('Attempting to extract total amount...');
+                        // Find all elements with 'TableInfo' in their id and get the last one
+                        const allTableInfoElements = await this.page.locator('[id*="TableInfo"]').all();
+                        console.log(`Found ${allTableInfoElements.length} elements with 'TableInfo' in id`);
+
+                        if (allTableInfoElements.length > 0) {
+                            const totalTable = allTableInfoElements[allTableInfoElements.length - 1];
+                            const cells = await totalTable.locator('td.font10grey').all();
+                            //console.log(`Found ${cells.length} td.font10grey cells in total table`);
+
+                            if (cells.length > 0) {
+                                const lastCell = cells[cells.length - 1];
+                                const totalText = await lastCell.innerText();
+                                //console.log(`Total amount text: "${totalText}"`);
+                                invoice.totalAmount = parseFloat(totalText);
+                            } else {
+                                console.warn('No td.font10grey cells found in total table');
+                                invoice.totalAmount = undefined;
+                            }
+                        } else {
+                            invoice.totalAmount = undefined;
+                            throw new Error('No elements with TableInfo in id found');
+                        }
+                    } catch (error) {
+                        console.warn(`Failed to extract total amount for the invoice ${invoice.invoiceNumber} - ${invoice.centre}: ${error}`);
+                        invoice.totalAmount = undefined;
+                    }
 
                     allInvoices.push(invoice);
 
