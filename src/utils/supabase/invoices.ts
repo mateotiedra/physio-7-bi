@@ -65,7 +65,7 @@ export async function insertInvoices(
                 .single();
 
             if (existing) {
-                console.log(`Invoice ${invoice.invoiceNumber} already exists, skipping...`);
+                console.log(`Invoice ${invoice.centre} - ${invoice.invoiceNumber} already exists, skipping...`);
                 continue;
             }
         }

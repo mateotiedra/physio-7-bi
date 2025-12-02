@@ -188,26 +188,29 @@ export class MediOnlinePageWrapper {
         }
     }
 
-    async goToPatientInfoPage(patientIndex: number): Promise<boolean> {
-
-        // Check if there's a next patient button (patient right after)
-        const nextPatientButtonExists = await this.page.locator(`input[id="ctl00_CPH_ctl00_PatientSearchResult_GridView1_ctl${(patientIndex + 4).toString().padStart(2, '0')}_chkSelect"]`).count() > 0;
-        const lastPatientOfThePage = !nextPatientButtonExists;
-
-        // Check if the patient at patientIndex exists (or is it a tiers payant row?)
-        let accessPatientInfoButton;
+    private async isTiersPayantRow(patientIndex: number): Promise<boolean> {
         try {
-            accessPatientInfoButton = this.page.locator(`input[id="ctl00_CPH_ctl00_PatientSearchResult_GridView1_ctl${(patientIndex + 3).toString().padStart(2, '0')}_btnEdit"]`);
+            let accessPatientInfoButton = this.page.locator(`input[id="ctl00_CPH_ctl00_PatientSearchResult_GridView1_ctl${(patientIndex + 3).toString().padStart(2, '0')}_btnEdit"]`);
             await accessPatientInfoButton.waitFor({ timeout: 5000 });
             if (await accessPatientInfoButton.count() === 0) {
-                throw new Error('Patient edit button not found (might be a tiers payant row)');
+                return true;
             }
         } catch (error) {
-            throw new MediOnlineError(`No patient found at index ${patientIndex}`, 'TIERS_PATIENT_ROW');
+            return true;
         }
-        await accessPatientInfoButton.click();
+        return false;
+    }
 
-        return lastPatientOfThePage;
+    async goToPatientInfoPage(patientIndex: number): Promise<boolean> {
+        // Check if the patient at patientIndex exists (or is it a tiers payant row?)
+        if (await this.isTiersPayantRow(patientIndex)) {
+            throw new MediOnlineError(`No patient found at index ${patientIndex}`, 'TIERS_PATIENT_ROW')
+        }
+
+        // Click the edit button for the patient
+        await this.page.click(`input[id="ctl00_CPH_ctl00_PatientSearchResult_GridView1_ctl${(patientIndex + 3).toString().padStart(2, '0')}_btnEdit"]`);
+
+        return patientIndex === 24;
     }
 
     async goToPatientSearchPage(pageIndex: number): Promise<boolean> {
@@ -382,6 +385,8 @@ export class MediOnlinePageWrapper {
         await this.page.waitForLoadState('networkidle');
 
         const iframe = this.page.frameLocator('#ctl00_CPH_ctl00_pati_tabs_011_ctl00_myIframe');
+        await iframe.locator('body').waitFor({ state: 'attached', timeout: 10000 });
+
         const appointmentContainers = await iframe.locator('div.formContainer').all();
 
         const allAppointments: AppointmentInfo[] = [];
@@ -662,8 +667,6 @@ export class MediOnlinePageWrapper {
                         console.warn('Failed to extract services:', error);
                         invoice.services = undefined;
                     }
-
-                    console.log('Finished scraping services');
 
                     invoice.totalAmount = parseFloat(await this.page.locator('#ctl00_CPH_ctl00_ctl12_TableInfo').locator('td.font10grey').last().innerText());
 

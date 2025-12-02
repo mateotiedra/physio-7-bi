@@ -117,10 +117,13 @@ class MediOnlineManager {
 
         await this.mpage.searchPatients({ firstName: '', lastName: '', dateOfBirth: '' });
         //await this.mpage.goToPatientDashboard('Alizadeh', 'Abbas', '');
-        let currPageIndex = 0;
-        let currPatientIndex = 1;
+        let currPageIndex = 2;
+        let currPatientIndex = 0;
 
         while (true) {
+            await this.mpage.goToPatientSearchPage(currPageIndex);
+            console.log(`\n\nStart scraping page ${currPageIndex}, patient index ${currPatientIndex}`);
+
             let lastPatientOfThePage;
             try {
                 lastPatientOfThePage = await this.mpage.goToPatientInfoPage(currPatientIndex);

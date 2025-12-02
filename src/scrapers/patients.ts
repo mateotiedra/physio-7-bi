@@ -24,11 +24,8 @@ async function uploadAppointmentsData(patientId: string, appointments: Appointme
 }
 
 async function uploadInvoicesData(patientId: string, invoices: InvoiceInfo[]): Promise<void> {
-    console.log(`\n========== UPLOADING ${invoices.length} INVOICES ==========`);
-
     await insertInvoices(patientId, invoices);
     console.log(`Successfully uploaded ${invoices.length} invoices with their services`);
-    console.log(`========================================\n`);
 }
 
 async function main() {
