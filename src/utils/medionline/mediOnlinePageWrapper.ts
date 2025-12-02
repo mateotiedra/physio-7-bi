@@ -460,13 +460,16 @@ export class MediOnlinePageWrapper {
 
             // Click the header link to expand/load invoice details for this centre
             const containerOpener = container.locator('a').first();
-            const isCollapsed = await containerOpener.getAttribute('class').then(c => c?.includes('collapsed'));
-            if (isCollapsed) {
-                await containerOpener.click();
-                await this.page.waitForTimeout(1000);
-                await this.page.waitForLoadState('networkidle');
-                await container.innerHTML();
-            }
+            const isCollapsed = await containerOpener.getAttribute('class').then(c => c?.includes('collapsed')) || false;
+            const openCenterDivIfCollapsed = async () => {
+                if (isCollapsed) {
+                    await containerOpener.click();
+                    await this.page.waitForTimeout(1000);
+                    await this.page.waitForLoadState('networkidle');
+                    await container.innerHTML();
+                }
+            };
+            await openCenterDivIfCollapsed();
 
             let centre: string;
 
@@ -690,6 +693,8 @@ export class MediOnlinePageWrapper {
 
                     await this.goBack();
                     await this.page.waitForLoadState('networkidle');
+
+                    await openCenterDivIfCollapsed();
 
                 } catch (error) {
                     console.warn('Failed to parse invoice row:', error);
