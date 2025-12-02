@@ -165,7 +165,6 @@ export interface PatientInfo {
     ddn?: string,
     langue?: string,
     nationalite?: string,
-    dob?: string,
     dateDeces?: string,
     noAvs?: string,
     employeur?: string,

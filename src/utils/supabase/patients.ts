@@ -26,7 +26,6 @@ function mapPatientToDb(patient: PatientInfo) {
         ddn: patient.ddn ?? null,
         langue: patient.langue ?? null,
         nationalite: patient.nationalite ?? null,
-        dob: patient.dob ?? null,
         date_deces: patient.dateDeces ?? null,
         employeur: patient.employeur ?? null,
         profession: patient.profession ?? null,

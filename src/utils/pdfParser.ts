@@ -43,7 +43,6 @@ export function parsePatientText(text: string): PatientInfo {
         tel2: 'Tél. 2',
         noTel2: 'No Tél. 2',
         tel3: 'Tél. 3',
-        dob: 'Né(e) le',
         noPatient: 'N° Patient',
         employeur: 'Employeur',
         noAvs: 'N° AVS',

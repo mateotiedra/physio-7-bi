@@ -166,9 +166,11 @@ export class MediOnlinePageWrapper {
         const resultTable = this.page.locator('table#ctl00_CPH_ctl00_PatientSearchResult_GridView1 tbody').first();
         await resultTable.innerHTML();
         const rowCount = await resultTable.locator('> tr').count();
-        if (rowCount < 28) {
+        console.log(`Row count: ${rowCount}`);
+
+        /* if (rowCount < 28) {
             throw new Error('You have reached the last page (the page you\'re currently on).');
-        }
+        } */
 
         // This executes inside the page and triggers the same server-side postback as clicking the link.
         const eventTarget = 'ctl00$CPH$ctl00$PatientSearchResult$GridView1';
@@ -252,7 +254,7 @@ export class MediOnlinePageWrapper {
         info.noPatient = await this.getInputValue('input[id="ctl00_CPH_ctl00_patientDetails_txtNumber"]');
         info.langue = await this.getSelectText('#ctl00_CPH_ctl00_patientDetails_ddlLanguage');
         info.nationalite = await this.getSelectText('#ctl00_CPH_ctl00_patientDetails_ddlNationality');
-        info.dob = await this.getInputValue('input[id="ctl00_CPH_ctl00_patientDetails_txtBirthdate"]');
+        info.ddn = await this.getInputValue('input[id="ctl00_CPH_ctl00_patientDetails_txtBirthdate"]');
         info.dateDeces = await this.getInputValue('input[id="ctl00_CPH_ctl00_patientDetails_txtDeathDate"]');
         info.noAvs = await this.getInputValue('input[id="ctl00_CPH_ctl00_patientDetails_txtAvsNb"]');
         info.employeur = await this.getInputValue('input[id="ctl00_CPH_ctl00_patientDetails_txtEmployerNb"]');

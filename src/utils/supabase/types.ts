@@ -23,7 +23,6 @@ export type Database = {
                     ddn: string | null;
                     langue: string | null;
                     nationalite: string | null;
-                    dob: string | null;
                     date_deces: string | null;
                     employeur: string | null;
                     profession: string | null;
@@ -64,7 +63,6 @@ export type Database = {
                     ddn?: string | null;
                     langue?: string | null;
                     nationalite?: string | null;
-                    dob?: string | null;
                     date_deces?: string | null;
                     employeur?: string | null;
                     profession?: string | null;
@@ -105,7 +103,6 @@ export type Database = {
                     ddn?: string | null;
                     langue?: string | null;
                     nationalite?: string | null;
-                    dob?: string | null;
                     date_deces?: string | null;
                     employeur?: string | null;
                     profession?: string | null;
