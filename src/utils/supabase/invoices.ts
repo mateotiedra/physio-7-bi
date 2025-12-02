@@ -21,6 +21,8 @@ function mapInvoiceToDb(patientId: string, invoice: InvoiceInfo) {
         prestation_location: invoice.prestationLocation ?? null,
         prescribing_doctor: invoice.prescribingDoctor ?? null,
         prescribing_doctor_address: invoice.prescribingDoctorAdress ?? null,
+        case_date: invoice.caseDate ?? null,
+        decision_number: invoice.decisionNumber ?? null,
         total_amount: invoice.totalAmount ?? null,
     };
 }

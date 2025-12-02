@@ -385,7 +385,11 @@ export class MediOnlinePageWrapper {
         await this.page.waitForLoadState('networkidle');
 
         const iframe = this.page.frameLocator('#ctl00_CPH_ctl00_pati_tabs_011_ctl00_myIframe');
-        await iframe.locator('body').waitFor({ state: 'attached', timeout: 10000 });
+
+        // Wait for iframe to be fully loaded
+        await this.page.waitForTimeout(1000);
+        await this.page.waitForLoadState('networkidle');
+        await iframe.locator('body').waitFor({ state: 'visible', timeout: 10000 });
 
         const appointmentContainers = await iframe.locator('div.formContainer').all();
 
@@ -471,7 +475,7 @@ export class MediOnlinePageWrapper {
         const iframe = this.page.frameLocator('#ctl00_CPH_ctl00_pati_tabs_011_ctl00_myIframe');
         // Wait for iframe to be fully loaded
         await this.page.waitForTimeout(2000);
-        await iframe.locator('body').waitFor({ state: 'attached', timeout: 10000 });
+        await iframe.locator('body').waitFor({ state: 'visible', timeout: 10000 });
 
         // Check if there are no invoices (span with "Aucune facture" message)
         const noInvoiceSpan = iframe.locator('span#ctl00_MainContentPlaceHolder_lvAccount_ctrl0_lblNoInvoice');
@@ -479,8 +483,8 @@ export class MediOnlinePageWrapper {
             console.log('No invoices found for this patient');
             return [];
         }
-        /* await iframe.locator('div.formContainer').waitFor({ timeout: 10000 });
-        await iframe.locator('div[content="true"]').first().waitFor({ state: 'visible', timeout: 20000 }); */
+        await iframe.locator('div.formContainer').waitFor({ timeout: 10000 });
+        await iframe.locator('div[content="true"]').first().waitFor({ state: 'visible', timeout: 20000 });
         const invoiceContainers = await iframe.locator('div.formContainer').all();
 
         const allInvoices: InvoiceInfo[] = [];
@@ -551,6 +555,15 @@ export class MediOnlinePageWrapper {
                     invoice.law = await extractValue('Loi');
                     invoice.treatmentType = await extractValue('Motif traitement');
                     invoice.noAssuredCard = await extractValue('N° carte d\'assuré');
+                    invoice.noAssuredPerson = await extractValue('N° assuré');
+
+                    const caseDateText = await extractValue('Date cas');
+                    if (caseDateText) {
+                        const [day, month, year] = caseDateText.split('.');
+                        invoice.caseDate = `${year}-${month}-${day}`;
+                    }
+
+                    invoice.decisionNumber = await extractValue('N° décision');
 
                     const startDateText = await extractValue('Début traitement');
                     if (startDateText) {

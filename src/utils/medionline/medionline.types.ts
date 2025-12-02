@@ -220,6 +220,8 @@ export interface InvoiceInfo {
     prestationLocation?: string,
     prescribingDoctor?: string,
     prescribingDoctorAdress?: string,
+    caseDate?: string,
+    decisionNumber?: string,
     totalAmount?: number,
     services?: ServicesInfo[],
     patientAVS?: string,

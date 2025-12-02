@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS invoices (
     prestation_location TEXT,
     prescribing_doctor TEXT,
     prescribing_doctor_address TEXT,
+    case_date TEXT,
+    decision_number TEXT,
     total_amount DECIMAL(10, 2),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

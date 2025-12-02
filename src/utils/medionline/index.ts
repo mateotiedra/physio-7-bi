@@ -117,8 +117,9 @@ class MediOnlineManager {
 
         await this.mpage.searchPatients({ firstName: '', lastName: '', dateOfBirth: '' });
         //await this.mpage.goToPatientDashboard('Alizadeh', 'Abbas', '');
-        let currPageIndex = 2;
-        let currPatientIndex = 0;
+
+        let currPageIndex = 1;
+        let currPatientIndex = 3;
 
         while (true) {
             await this.mpage.goToPatientSearchPage(currPageIndex);
