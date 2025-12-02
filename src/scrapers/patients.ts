@@ -8,7 +8,7 @@ async function uploadPatientsData(patients: PatientInfo[]): Promise<string> {
     }
 
     const patient = patients[0];
-    console.log(`Uploading patient: ${patient.noPatient || 'N/A'}`);
+    console.log(`Uploading patient: ${`${patient.nom} ${patient.prenom}` || 'N/A'}`);
 
     const patientId = await upsertPatient(patient);
     console.log(`Patient uploaded with ID: ${patientId}`);
