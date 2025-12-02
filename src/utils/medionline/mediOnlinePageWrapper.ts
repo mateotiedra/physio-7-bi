@@ -35,13 +35,17 @@ export class MediOnlinePageWrapper {
      */
     async selectOptionIncludeStr(selectStr: string, includeStr: string, context: FrameLocator | Locator | Page = this.context): Promise<void> {
         const selectElement = context.locator(`select[id="${selectStr}"]`);
-        await selectElement.locator('option').all();
-        await selectElement.innerHTML();
 
+        // Wait for the select element to exist
+        await selectElement.waitFor({ state: 'attached', timeout: 10000 });
+
+        // Wait for options to be populated (retry logic)
         const targetOption = selectElement.locator(`option:has-text("${includeStr}")`).first();
-        const optionExists = await targetOption.count() > 0;
 
-        if (!optionExists) {
+        try {
+            // Wait up to 5 seconds for the option to appear
+            await targetOption.waitFor({ state: 'attached', timeout: 5000 });
+        } catch (error) {
             throw new MediOnlineError(`No option including "${includeStr}" found in select with ID "${selectStr}"`, 'SELECT_OPTION_NOT_FOUND');
         }
 
@@ -335,7 +339,17 @@ export class MediOnlinePageWrapper {
         await this.page.waitForLoadState('networkidle');
         await iframe.locator('body').waitFor({ state: 'visible' });
 
+        const noAppointmentsSpan = iframe.locator('span#ctl00_MainContentPlaceHolder_lvAgenda_ctrl0_lblNoAppointment');
+        if (await noAppointmentsSpan.count() > 0) {
+            console.log('No appointments found for this patient');
+            return [];
+        }
+
         const appointmentContainers = await iframe.locator('div.formContainer').all();
+
+        if (appointmentContainers.length === 0) {
+            throw new MediOnlineError('No appointment containers found on the appointments page', 'NO_APPOINTMENT_CONTAINERS');
+        }
 
         const allAppointments: AppointmentInfo[] = [];
 
@@ -422,6 +436,8 @@ export class MediOnlinePageWrapper {
         await iframe.locator('body').waitFor({ state: 'visible' });
 
         await this.selectOptionIncludeStr('ctl00_MainContentPlaceHolder_ddlLimit', 'Toutes', iframe);
+
+        await this.page.waitForTimeout(1000);
         await this.page.waitForLoadState('networkidle');
 
         // Check if there are no invoices (span with "Aucune facture" message)
@@ -432,6 +448,10 @@ export class MediOnlinePageWrapper {
         }
         await iframe.locator('div[content="true"]').first().waitFor({ state: 'attached' });
         const invoiceContainers = await iframe.locator('div.formContainer').all();
+
+        if (invoiceContainers.length === 0) {
+            throw new MediOnlineError('No invoice containers found on the invoices page', 'NO_INVOICE_CONTAINERS');
+        }
 
         const allInvoices: InvoiceInfo[] = [];
 
