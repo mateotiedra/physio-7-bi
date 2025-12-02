@@ -424,13 +424,24 @@ export class MediOnlinePageWrapper {
             console.log('No invoices found for this patient');
             return [];
         }
-        await iframe.locator('div[content="true"]').first().waitFor({ state: 'visible' });
+        await iframe.locator('div[content="true"]').first().waitFor({ state: 'attached' });
         const invoiceContainers = await iframe.locator('div.formContainer').all();
 
         const allInvoices: InvoiceInfo[] = [];
 
         for (const container of invoiceContainers) {
             await container.innerHTML();
+
+            // Click the header link to expand/load invoice details for this centre
+            const containerOpener = container.locator('a').first();
+            const isCollapsed = await containerOpener.getAttribute('class').then(c => c?.includes('collapsed'));
+            if (isCollapsed) {
+                await containerOpener.click();
+                await this.page.waitForTimeout(1000);
+                await this.page.waitForLoadState('networkidle');
+                await container.innerHTML();
+            }
+
             let centre: string;
 
             // Extract centre from the parent formContainer header
@@ -623,10 +634,8 @@ export class MediOnlinePageWrapper {
 
                     // Extract total amount
                     try {
-                        console.log('Attempting to extract total amount...');
                         // Find all elements with 'TableInfo' in their id and get the last one
                         const allTableInfoElements = await this.page.locator('[id*="TableInfo"]').all();
-                        console.log(`Found ${allTableInfoElements.length} elements with 'TableInfo' in id`);
 
                         if (allTableInfoElements.length > 0) {
                             const totalTable = allTableInfoElements[allTableInfoElements.length - 1];
