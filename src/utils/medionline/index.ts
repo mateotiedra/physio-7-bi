@@ -160,4 +160,4 @@ class MediOnlineManager {
     }
 }
 
-export const mediOnline = new MediOnlineManager(process.env.HEADLESS_MODE === 'true', 40000);
+export const mediOnline = new MediOnlineManager(process.env.HEADLESS_MODE === 'true', 60000);

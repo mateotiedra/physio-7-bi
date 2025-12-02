@@ -8,17 +8,14 @@ async function uploadPatientsData(patients: PatientInfo[]): Promise<string> {
     }
 
     const patient = patients[0];
-    console.log(`Uploading patient: ${`${patient.nom} ${patient.prenom}` || 'N/A'}`);
 
     const patientId = await upsertPatient(patient);
-    console.log(`Patient uploaded with ID: ${patientId}`);
+    console.log(`Patient uploaded: ${`${patient.nom} ${patient.prenom} - ${patientId}` || 'N/A'}`);
 
     return patientId;
 }
 
 async function uploadAppointmentsData(patientId: string, appointments: AppointmentInfo[]): Promise<void> {
-    console.log(`Uploading ${appointments.length} appointments for patient ${patientId}`);
-
     await insertAppointments(patientId, appointments);
     console.log(`Successfully uploaded ${appointments.length} appointments`);
 }

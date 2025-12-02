@@ -33,8 +33,8 @@ export class MediOnlinePageWrapper {
      * @returns Promise that resolves when the option is selected
      * @throws MediOnlineSelectOptionNotFoundError if no matching option is found
      */
-    async selectOptionIncludeStr(selectStr: string, includeStr: string): Promise<void> {
-        const selectElement = this.context.locator(`select[id="${selectStr}"]`);
+    async selectOptionIncludeStr(selectStr: string, includeStr: string, context: FrameLocator | Locator | Page = this.context): Promise<void> {
+        const selectElement = context.locator(`select[id="${selectStr}"]`);
         await selectElement.locator('option').all();
         await selectElement.innerHTML();
 
@@ -155,6 +155,9 @@ export class MediOnlinePageWrapper {
     }
 
     async goToPatientSearchPage(pageIndex: number): Promise<boolean> {
+        await this.page.waitForTimeout(1000);
+        await this.page.waitForLoadState('networkidle');
+
         // Count the number of rows in the search results table to confirm navigation
         const resultTable = this.page.locator('table#ctl00_CPH_ctl00_PatientSearchResult_GridView1 tbody').first();
         await resultTable.innerHTML();
@@ -417,6 +420,9 @@ export class MediOnlinePageWrapper {
         const iframe = this.page.frameLocator('#ctl00_CPH_ctl00_pati_tabs_011_ctl00_myIframe');
         // Wait for iframe to be fully loaded
         await iframe.locator('body').waitFor({ state: 'visible' });
+
+        await this.selectOptionIncludeStr('ctl00_MainContentPlaceHolder_ddlLimit', 'Toutes', iframe);
+        await this.page.waitForLoadState('networkidle');
 
         // Check if there are no invoices (span with "Aucune facture" message)
         const noInvoiceSpan = iframe.locator('span#ctl00_MainContentPlaceHolder_lvAccount_ctrl0_lblNoInvoice');
