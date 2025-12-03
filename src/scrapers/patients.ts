@@ -27,8 +27,19 @@ async function uploadInvoicesData(patientId: string, invoices: InvoiceInfo[]): P
 
 async function main() {
     try {
+        // Get command-line arguments: npm run scrape [pageIndex] [patientIndex]
+        const args = process.argv.slice(2);
+        const pageIndex = args[0] ? parseInt(args[0], 10) : undefined;
+        const patientIndex = args[1] ? parseInt(args[1], 10) : undefined;
+
         await mediOnline.login(process.env.MEDIONLINE_USERNAME!, process.env.MEDIONLINE_PASSWORD!);
-        await mediOnline.scrapePatientDashboards(uploadPatientsData, uploadAppointmentsData, uploadInvoicesData)
+        await mediOnline.scrapePatientDashboards(
+            uploadPatientsData,
+            uploadAppointmentsData,
+            uploadInvoicesData,
+            pageIndex,
+            patientIndex
+        );
 
     } catch (error) {
         console.error('Error scraping MediOnline:', error);

@@ -109,7 +109,9 @@ class MediOnlineManager {
     async scrapePatientDashboards(
         uploadPatientsData: (patients: PatientInfo[]) => Promise<string>,
         uploadAppointmentsData: (patientId: string, appointments: AppointmentInfo[]) => Promise<void>,
-        uploadInvoicesData: (patientId: string, invoices: InvoiceInfo[]) => Promise<void>
+        uploadInvoicesData: (patientId: string, invoices: InvoiceInfo[]) => Promise<void>,
+        startPageIndex?: number,
+        startPatientIndex?: number
     ): Promise<void> {
         if (this.status !== 'connected') {
             throw new MediOnlineError('Cannot query patients when not connected', 'NOT_CONNECTED');
@@ -118,8 +120,8 @@ class MediOnlineManager {
         await this.mpage.searchPatients({ firstName: '', lastName: '', dateOfBirth: '' });
         //await this.mpage.goToPatientDashboard('Alizadeh', 'Abbas', '');
 
-        let currPageIndex = parseInt(process.env.CURR_PAGE_INDEX || '1', 10);
-        let currPatientIndex = parseInt(process.env.CURR_PATIENT_INDEX || '0', 10);
+        let currPageIndex = startPageIndex ?? parseInt(process.env.CURR_PAGE_INDEX || '1', 10);
+        let currPatientIndex = startPatientIndex ?? parseInt(process.env.CURR_PATIENT_INDEX || '0', 10);
 
         while (true) {
             await this.mpage.goToPatientSearchPage(currPageIndex);
