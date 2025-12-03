@@ -19,6 +19,7 @@ function mapAppointmentToDb(patientId: string, appointment: AppointmentInfo) {
 
 /**
  * Insert multiple appointments for a patient
+ * Checks for existing appointments to prevent duplicates
  */
 export async function insertAppointments(
     patientId: string,
@@ -28,16 +29,31 @@ export async function insertAppointments(
         return;
     }
 
-    const dbAppointments = appointments.map((appointment) =>
-        mapAppointmentToDb(patientId, appointment)
-    );
+    for (const appointment of appointments) {
+        // Check if appointment already exists (by patient_id + date)
+        if (appointment.date) {
+            const { data: existing } = await supabase
+                .from('appointments')
+                .select('id')
+                .eq('patient_id', patientId)
+                .eq('date', appointment.date)
+                .single();
 
-    const { error } = await supabase
-        .from('appointments')
-        .insert(dbAppointments as any);
+            if (existing) {
+                console.log(`Appointment for patient ${patientId} at ${appointment.date} already exists, skipping...`);
+                continue;
+            }
+        }
 
-    if (error) {
-        throw new Error(`Failed to insert appointments: ${error.message}`);
+        // Insert appointment
+        const dbAppointment = mapAppointmentToDb(patientId, appointment);
+        const { error } = await supabase
+            .from('appointments')
+            .insert(dbAppointment as any);
+
+        if (error) {
+            throw new Error(`Failed to insert appointment: ${error.message}`);
+        }
     }
 }
 
