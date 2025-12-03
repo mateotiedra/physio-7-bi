@@ -3,12 +3,10 @@ import {
     MediOnlineError,
     MediOnlineCredentialsError,
     MediOnlineLoginError,
-    CreateTreatmentSteps,
-    MediOnlineCreateTreatmentUnknownError,
-    MediOnlineCreateTreatmentStepError,
     AppointmentInfo,
     InvoiceInfo,
     PatientInfo,
+    MediOnlinePatientsScraperError,
 } from './medionline.types';
 import { MediOnlinePageWrapper } from './mediOnlinePageWrapper';
 import { config } from '../../config';
@@ -123,41 +121,50 @@ class MediOnlineManager {
         let currPageIndex = startPageIndex ?? parseInt(process.env.CURR_PAGE_INDEX || '1', 10);
         let currPatientIndex = startPatientIndex ?? parseInt(process.env.CURR_PATIENT_INDEX || '0', 10);
 
-        while (true) {
-            await this.mpage.goToPatientSearchPage(currPageIndex);
-            console.log(`\n\nStart scraping page ${currPageIndex}, patient index ${currPatientIndex}`);
+        try {
+            while (true) {
+                await this.mpage.goToPatientSearchPage(currPageIndex);
+                console.log(`\n\nStart scraping page ${currPageIndex}, patient index ${currPatientIndex}`);
 
-            let lastPatientOfThePage;
-            try {
-                lastPatientOfThePage = await this.mpage.goToPatientInfoPage(currPatientIndex);
-            } catch (error) {
-                if (error instanceof MediOnlineError && error.code === 'TIERS_PATIENT_ROW') {
-                    currPatientIndex++;
-                    continue;
-                }
-                throw error;
-            }
-            const patientData = await this.mpage.scrapePatientInfos();
-            const patientId = await uploadPatientsData([patientData]);
-            const appointmentsData = await this.mpage.scrapePatientAppointments();
-            const invoicesData = await this.mpage.scrapePatientInvoices(patientData.noAvs!);
-            await this.mpage.goBack();
-            await uploadAppointmentsData(patientId, appointmentsData);
-            await uploadInvoicesData(patientId, invoicesData);
-
-            // Try to go to the next patient search page
-            if (lastPatientOfThePage) {
+                let lastPatientOfThePage;
                 try {
-                    await this.mpage.goToPatientSearchPage(++currPageIndex);
-                    console.log(`Moving to patient search page ${currPageIndex}`);
-                    currPatientIndex = 0;
-                } catch {
-                    console.log('Finished scaping all the patients');
-                    return;
+                    lastPatientOfThePage = await this.mpage.goToPatientInfoPage(currPatientIndex);
+                } catch (error) {
+                    if (error instanceof MediOnlineError && error.code === 'TIERS_PATIENT_ROW') {
+                        currPatientIndex++;
+                        continue;
+                    }
+                    throw error;
                 }
-            } else {
-                currPatientIndex++;
+                const patientData = await this.mpage.scrapePatientInfos();
+                const patientId = await uploadPatientsData([patientData]);
+                const appointmentsData = await this.mpage.scrapePatientAppointments();
+                const invoicesData = await this.mpage.scrapePatientInvoices(patientData.noAvs!);
+                await this.mpage.goBack();
+                await uploadAppointmentsData(patientId, appointmentsData);
+                await uploadInvoicesData(patientId, invoicesData);
+
+                // Try to go to the next patient search page
+                if (lastPatientOfThePage) {
+                    try {
+                        await this.mpage.goToPatientSearchPage(++currPageIndex);
+                        console.log(`Moving to patient search page ${currPageIndex}`);
+                        currPatientIndex = 0;
+                    } catch {
+                        console.log('Finished scraping all the patients');
+                        return;
+                    }
+                } else {
+                    currPatientIndex++;
+                }
             }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            throw new MediOnlinePatientsScraperError(
+                `Error scraping patients at page ${currPageIndex}, patient index ${currPatientIndex}: ${errorMessage}`,
+                currPageIndex,
+                currPatientIndex
+            );
         }
     }
 }

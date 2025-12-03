@@ -29,20 +29,56 @@ async function main() {
     try {
         // Get command-line arguments: npm run scrape [pageIndex] [patientIndex]
         const args = process.argv.slice(2);
-        const pageIndex = args[0] ? parseInt(args[0], 10) : undefined;
-        const patientIndex = args[1] ? parseInt(args[1], 10) : undefined;
+        let pageIndex = args[0] ? parseInt(args[0], 10) : undefined;
+        let patientIndex = args[1] ? parseInt(args[1], 10) : undefined;
 
         await mediOnline.login(process.env.MEDIONLINE_USERNAME!, process.env.MEDIONLINE_PASSWORD!);
-        await mediOnline.scrapePatientDashboards(
-            uploadPatientsData,
-            uploadAppointmentsData,
-            uploadInvoicesData,
-            pageIndex,
-            patientIndex
-        );
+
+        let retryCount = 0;
+        const maxRetries = 3;
+        let lastFailedPageIndex: number | undefined;
+        let lastFailedPatientIndex: number | undefined;
+
+        while (retryCount <= maxRetries) {
+            try {
+                await mediOnline.scrapePatientDashboards(
+                    uploadPatientsData,
+                    uploadAppointmentsData,
+                    uploadInvoicesData,
+                    pageIndex,
+                    patientIndex
+                );
+                break; // Success, exit retry loop
+            } catch (error: any) {
+                if (error.code === 'PATIENTS_SCRAPER_ERROR' && retryCount < maxRetries) {
+                    pageIndex = error.currPageIndex;
+                    patientIndex = error.currPatientIndex;
+
+                    // Reset retry count if error is at a different position (new error)
+                    if (pageIndex !== lastFailedPageIndex || patientIndex !== lastFailedPatientIndex) {
+                        retryCount = 0;
+                        lastFailedPageIndex = pageIndex;
+                        lastFailedPatientIndex = patientIndex;
+                    }
+
+                    retryCount++;
+                    console.error(`\n❌ Error occurred: ${error.message}`);
+                    console.log(`\n🔄 Retry ${retryCount}/${maxRetries}: Restarting from page ${pageIndex}, patient ${patientIndex}\n`);
+
+                    await mediOnline.logoutAndClose();
+                    // Wait before retrying (exponential backoff)
+                    await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
+
+                    await mediOnline.login(process.env.MEDIONLINE_USERNAME!, process.env.MEDIONLINE_PASSWORD!);
+                } else {
+                    throw error; // Re-throw if max retries reached or different error
+                }
+            }
+        }
 
     } catch (error) {
         console.error('Error scraping MediOnline:', error);
+        process.exit(1);
     }
 }
 

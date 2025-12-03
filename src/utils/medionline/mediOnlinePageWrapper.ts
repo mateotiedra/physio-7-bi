@@ -166,7 +166,6 @@ export class MediOnlinePageWrapper {
         const resultTable = this.page.locator('table#ctl00_CPH_ctl00_PatientSearchResult_GridView1 tbody').first();
         await resultTable.innerHTML();
         const rowCount = await resultTable.locator('> tr').count();
-        console.log(`Row count: ${rowCount}`);
 
         /* if (rowCount < 28) {
             throw new Error('You have reached the last page (the page you\'re currently on).');

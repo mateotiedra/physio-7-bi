@@ -30,6 +30,16 @@ export class MediOnlineSelectOptionNotFoundError extends MediOnlineError {
     }
 }
 
+export class MediOnlinePatientsScraperError extends MediOnlineError {
+    constructor(message: string, public readonly currPageIndex: number, public readonly currPatientIndex: number) {
+        super(message, 'PATIENTS_SCRAPER_ERROR');
+        this.name = 'MediOnlinePatientsScraperError';
+        this.currPageIndex = currPageIndex;
+        this.currPatientIndex = currPatientIndex;
+        Object.setPrototypeOf(this, MediOnlinePatientsScraperError.prototype);
+    }
+}
+
 /**
  * Error thrown when login to MediOnline fails
  */
@@ -225,3 +235,5 @@ export interface InvoiceInfo {
     services?: ServicesInfo[],
     patientAVS?: string,
 }
+
+
