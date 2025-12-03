@@ -146,7 +146,7 @@ export class MediOnlinePageWrapper {
         return false;
     }
 
-    async goToPatientInfoPage(patientIndex: number): Promise<boolean> {
+    async goToPatientInfoPage(patientIndex: number): Promise<void> {
         // Check if the patient at patientIndex exists (or is it a tiers payant row?)
         if (await this.isTiersPayantRow(patientIndex)) {
             throw new MediOnlineError(`No patient found at index ${patientIndex}`, 'TIERS_PATIENT_ROW')
@@ -154,8 +154,6 @@ export class MediOnlinePageWrapper {
 
         // Click the edit button for the patient
         await this.page.click(`input[id="ctl00_CPH_ctl00_PatientSearchResult_GridView1_ctl${(patientIndex + 3).toString().padStart(2, '0')}_btnEdit"]`);
-
-        return patientIndex >= 24;
     }
 
     async goToPatientSearchPage(pageIndex: number): Promise<boolean> {

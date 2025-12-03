@@ -127,26 +127,33 @@ class MediOnlineManager {
                 await this.mpage.goToPatientSearchPage(currPageIndex);
                 console.log(`\n\nStart scraping page ${currPageIndex}, patient index ${currPatientIndex}`);
 
-                let lastPatientOfThePage;
+                const lastPatientOfThePage = currPatientIndex >= 24;
+
+                let skipScraping = false;
                 try {
-                    lastPatientOfThePage = await this.mpage.goToPatientInfoPage(currPatientIndex);
+                    await this.mpage.goToPatientInfoPage(currPatientIndex);
                 } catch (error) {
+
                     if (error instanceof MediOnlineError && error.code === 'TIERS_PATIENT_ROW') {
                         currPatientIndex++;
-                        continue;
+                        skipScraping = true;
+                    } else {
+                        throw error;
                     }
-                    throw error;
                 }
-                const patientData = await this.mpage.scrapePatientInfos();
-                const patientId = await uploadPatientsData([patientData]);
-                const appointmentsData = await this.mpage.scrapePatientAppointments();
-                const invoicesData = await this.mpage.scrapePatientInvoices(patientData.noAvs!);
-                await this.mpage.goBack();
-                await uploadAppointmentsData(patientId, appointmentsData);
-                await uploadInvoicesData(patientId, invoicesData);
 
-                // Track scraper activity
-                await trackScraperActivity(patientId, currPageIndex, currPatientIndex);
+                if (!skipScraping) {
+                    const patientData = await this.mpage.scrapePatientInfos();
+                    const patientId = await uploadPatientsData([patientData]);
+                    const appointmentsData = await this.mpage.scrapePatientAppointments();
+                    const invoicesData = await this.mpage.scrapePatientInvoices(patientData.noAvs!);
+                    await this.mpage.goBack();
+                    await uploadAppointmentsData(patientId, appointmentsData);
+                    await uploadInvoicesData(patientId, invoicesData);
+
+                    // Track scraper activity
+                    await trackScraperActivity(patientId, currPageIndex, currPatientIndex);
+                }
 
                 // Try to go to the next patient search page
                 if (lastPatientOfThePage) {
