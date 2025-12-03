@@ -155,7 +155,7 @@ export class MediOnlinePageWrapper {
         // Click the edit button for the patient
         await this.page.click(`input[id="ctl00_CPH_ctl00_PatientSearchResult_GridView1_ctl${(patientIndex + 3).toString().padStart(2, '0')}_btnEdit"]`);
 
-        return patientIndex === 24;
+        return patientIndex >= 24;
     }
 
     async goToPatientSearchPage(pageIndex: number): Promise<boolean> {
