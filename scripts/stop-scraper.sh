@@ -1,19 +1,10 @@
 #!/bin/bash
 
-# Get the container ID for the scraper
-containerId=$(docker ps --filter "name=business-inteligence-medionline-patients-scaper" --format "{{.ID}}")
-
-if [ -z "$containerId" ]; then
-    echo "Error: No running container found with name containing 'business-inteligence-medionline-patients-scaper'"
-    exit 1
-fi
-
-echo "Found container: $containerId"
 echo "Stopping scraper..."
 
 # Kill both the npm and node processes
-docker exec $containerId pkill -f "npm run scrape" || true
-docker exec $containerId pkill -f "node dist/scrapers/patients.js" || true
+kill $(ps aux | grep 'npm run scrape' | grep -v grep | awk '{print $2}') 2>/dev/null || true
+kill $(ps aux | grep 'node dist/scrapers/patients.js' | grep -v grep | awk '{print $2}') 2>/dev/null || true
 
 echo ""
 echo "✅ Scraper stopped successfully!"
