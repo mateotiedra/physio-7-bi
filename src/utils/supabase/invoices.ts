@@ -24,6 +24,7 @@ function mapInvoiceToDb(patientId: string, invoice: InvoiceInfo) {
         case_date: invoice.caseDate ?? null,
         decision_number: invoice.decisionNumber ?? null,
         total_amount: invoice.totalAmount ?? null,
+        status: invoice.status ?? null,
     };
 }
 

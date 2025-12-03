@@ -234,6 +234,7 @@ export interface InvoiceInfo {
     totalAmount?: number,
     services?: ServicesInfo[],
     patientAVS?: string,
+    status?: string,
 }
 
 

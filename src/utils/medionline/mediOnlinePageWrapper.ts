@@ -489,11 +489,43 @@ export class MediOnlinePageWrapper {
                     invoice.patientAVS = patientAVS;
                     invoice.centre = centre;
 
-                    // Click the view invoice button - specifically the one with icon-voir.gif (not calendar/appointment buttons)
                     await row.waitFor({ state: 'visible' });
+
+                    const statusCells = await row.locator('td').all();
+
+                    const statusText = statusCells.length >= 2
+                        ? (
+                            await statusCells[statusCells.length - 2].first().innerText() +
+                            await statusCells[statusCells.length - 1].first().innerText()
+                        ) : statusCells.length === 1
+                            ? await statusCells[0].innerText()
+                            : '';
+
+                    let contPopUpPromise;
+
+                    if (statusText.includes('Ann')) {
+                        invoice.status = 'Annulée';
+                    } else if (statusText.includes('Pmt')) {
+                        invoice.status = 'Payée';
+                    } else if (statusText.includes('Cont')) {
+                        invoice.status = 'Contentieux';
+                        // Prepare to handle the popup that appears when clicking "Cont" link
+                        contPopUpPromise = this.page.waitForEvent('popup');
+                    } else {
+                        invoice.status = 'Autre';
+                    }
+
+                    // Click the view invoice button - specifically the one with icon-voir.gif (not calendar/appointment buttons)
                     const viewButton = row.locator('input[type="image"]').first();
                     await viewButton.waitFor({ state: 'visible' });
                     await viewButton.click();
+
+                    // If "Cont" was clicked, handle the popup
+                    if (contPopUpPromise) {
+                        const contPopUp = await contPopUpPromise;
+                        contPopUp.close();
+                    }
+
                     await this.page.waitForLoadState('networkidle');
 
                     // Wait for the invoice details table to be visible - with graceful fallback
