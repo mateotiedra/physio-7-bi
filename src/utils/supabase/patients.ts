@@ -65,32 +65,42 @@ export async function insertPatient(patient: PatientInfo): Promise<string> {
 }
 
 /**
- * Upsert a patient (update if exists, insert if not) based on no_avs or no_patient
+ * Upsert a patient (update if exists, insert if not) based on the tuple (prenom, nom, ddn, no_avs)
  * Returns the patient UUID
  */
 export async function upsertPatient(patient: PatientInfo): Promise<string> {
     const dbPatient = mapPatientToDb(patient);
 
-    // Try to find existing patient by no_avs or no_patient
-    let existingPatient = null;
+    // Try to find existing patient by the tuple (prenom, nom, ddn, no_avs)
+    let query = supabase
+        .from('patients')
+        .select('id');
+
+    if (patient.prenom) {
+        query = query.eq('prenom', patient.prenom);
+    } else {
+        query = query.is('prenom', null);
+    }
+
+    if (patient.nom) {
+        query = query.eq('nom', patient.nom);
+    } else {
+        query = query.is('nom', null);
+    }
+
+    if (patient.ddn) {
+        query = query.eq('ddn', patient.ddn);
+    } else {
+        query = query.is('ddn', null);
+    }
 
     if (patient.noAvs) {
-        const { data } = await supabase
-            .from('patients')
-            .select('id')
-            .eq('no_avs', patient.noAvs)
-            .single();
-        existingPatient = data;
+        query = query.eq('no_avs', patient.noAvs);
+    } else {
+        query = query.is('no_avs', null);
     }
 
-    if (!existingPatient && patient.noPatient) {
-        const { data } = await supabase
-            .from('patients')
-            .select('id')
-            .eq('no_patient', patient.noPatient)
-            .single();
-        existingPatient = data;
-    }
+    const { data: existingPatient } = await query.single();
 
     if (existingPatient) {
         // Update existing patient
