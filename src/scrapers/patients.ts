@@ -1,6 +1,10 @@
 import { mediOnline } from '../utils/medionline/index';
 import { AppointmentInfo, InvoiceInfo, PatientInfo } from '../utils/medionline/medionline.types';
-import { upsertPatient, insertAppointments, insertInvoices } from '../utils/supabase';
+import { upsertPatient, insertAppointments, insertInvoices, insertScrapyActivity } from '../utils/supabase';
+import { randomUUID } from 'crypto';
+
+// Generate a unique scraper ID for this run
+const SCRAPER_ID = randomUUID();
 
 async function uploadPatientsData(patients: PatientInfo[]): Promise<string> {
     if (patients.length === 0) {
@@ -25,6 +29,11 @@ async function uploadInvoicesData(patientId: string, invoices: InvoiceInfo[]): P
     console.log(`Successfully uploaded ${invoices.length} invoices with their services`);
 }
 
+async function trackScraperActivity(patientId: string, pageIndex: number, rowIndex: number): Promise<void> {
+    await insertScrapyActivity(SCRAPER_ID, patientId, pageIndex, rowIndex);
+    console.log(`Tracked scraper activity: page ${pageIndex}, row ${rowIndex}`);
+}
+
 async function main() {
     try {
         // Get command-line arguments: npm run scrape [pageIndex] [patientIndex]
@@ -45,6 +54,7 @@ async function main() {
                     uploadPatientsData,
                     uploadAppointmentsData,
                     uploadInvoicesData,
+                    trackScraperActivity,
                     pageIndex,
                     patientIndex
                 );

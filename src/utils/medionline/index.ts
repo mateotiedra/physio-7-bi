@@ -108,6 +108,7 @@ class MediOnlineManager {
         uploadPatientsData: (patients: PatientInfo[]) => Promise<string>,
         uploadAppointmentsData: (patientId: string, appointments: AppointmentInfo[]) => Promise<void>,
         uploadInvoicesData: (patientId: string, invoices: InvoiceInfo[]) => Promise<void>,
+        trackScraperActivity: (patientId: string, pageIndex: number, rowIndex: number) => Promise<void>,
         startPageIndex?: number,
         startPatientIndex?: number
     ): Promise<void> {
@@ -143,6 +144,9 @@ class MediOnlineManager {
                 await this.mpage.goBack();
                 await uploadAppointmentsData(patientId, appointmentsData);
                 await uploadInvoicesData(patientId, invoicesData);
+
+                // Track scraper activity
+                await trackScraperActivity(patientId, currPageIndex, currPatientIndex);
 
                 // Try to go to the next patient search page
                 if (lastPatientOfThePage) {
