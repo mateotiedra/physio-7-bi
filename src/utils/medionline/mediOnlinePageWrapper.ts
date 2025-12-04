@@ -625,7 +625,7 @@ export class MediOnlinePageWrapper {
                         const services: ServicesInfo[] = [];
 
                         // Find the services table by looking for the header with class 'presta-head-table'
-                        const prestaTable = this.page.locator('#ctl00_CPH_ctl00_ctl11_TableInfo').locator('table').first();
+                        const prestaTable = this.page.locator('#ctl00_CPH_ctl00_ctl10_TableInfo').locator('table').first() || this.page.locator('#ctl00_CPH_ctl00_ctl12_TableInfo').locator('table').first();
                         await prestaTable.innerHTML();
 
                         // Found the services table, now get all data rows
