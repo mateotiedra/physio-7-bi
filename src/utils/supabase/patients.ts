@@ -51,17 +51,34 @@ function mapPatientToDb(patient: PatientInfo) {
 export async function insertPatient(patient: PatientInfo): Promise<string> {
     const dbPatient = mapPatientToDb(patient);
 
-    const { data, error } = await supabase
-        .from('patients')
-        .insert(dbPatient)
-        .select('id')
-        .single();
+    try {
+        const { data, error } = await supabase
+            .from('patients')
+            .insert(dbPatient)
+            .select('id')
+            .single();
 
-    if (error) {
-        throw new Error(`Failed to insert patient: ${error.message}`);
+        if (error) {
+            console.error('Supabase insert error details:', {
+                message: error.message,
+                code: error.code,
+                details: error.details,
+                hint: error.hint,
+                fullError: error
+            });
+            throw new Error(`Failed to insert patient: ${error.message}`);
+        }
+
+        return data.id;
+    } catch (err) {
+        console.error('Network/fetch error during insert:', {
+            error: err,
+            errorType: err instanceof Error ? err.constructor.name : typeof err,
+            errorMessage: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined
+        });
+        throw err;
     }
-
-    return data.id;
 }
 
 /**
@@ -100,7 +117,18 @@ export async function upsertPatient(patient: PatientInfo): Promise<string> {
         query = query.is('no_avs', null);
     }
 
-    const { data: existingPatient } = await query.single();
+    const { data: existingPatient, error: queryError } = await query.single();
+
+    if (queryError && queryError.code !== 'PGRST116') {
+        console.error('Supabase query error details:', {
+            message: queryError.message,
+            code: queryError.code,
+            details: queryError.details,
+            hint: queryError.hint,
+            fullError: queryError
+        });
+        throw new Error(`Failed to query patient: ${queryError.message}`);
+    }
 
     if (existingPatient) {
         // Update existing patient
@@ -110,6 +138,13 @@ export async function upsertPatient(patient: PatientInfo): Promise<string> {
             .eq('id', existingPatient.id);
 
         if (error) {
+            console.error('Supabase update error details:', {
+                message: error.message,
+                code: error.code,
+                details: error.details,
+                hint: error.hint,
+                fullError: error
+            });
             throw new Error(`Failed to update patient: ${error.message}`);
         }
 

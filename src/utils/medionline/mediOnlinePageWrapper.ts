@@ -492,6 +492,10 @@ export class MediOnlinePageWrapper {
 
                     await row.waitFor({ state: 'visible' });
 
+                    // Click the view invoice button - specifically the one with icon-voir.gif (not calendar/appointment buttons)
+                    const viewButton = row.locator('input[type="image"]').first();
+                    await viewButton.waitFor({ state: 'visible' });
+
                     const statusCells = await row.locator('td').all();
 
                     const statusText = statusCells.length >= 2
@@ -503,31 +507,29 @@ export class MediOnlinePageWrapper {
                             : '';
 
                     let contPopUpPromise;
+                    let waitForPopup = false;
 
                     if (statusText.includes('Ann')) {
                         invoice.status = 'Annulée';
                     } else if (statusText.includes('Pmt')) {
                         invoice.status = 'Payée';
-                    } else if (statusText.includes('Cont')) {
-                        invoice.status = 'Contentieux';
-                        // Prepare to handle the popup that appears when clicking "Cont" link
-                        try {
-                            contPopUpPromise = (await this.page.waitForEvent('popup', { timeout: 5000 }));
-                        } catch (error) {
-                        }
                     } else {
-                        invoice.status = 'Autre';
+                        invoice.status = statusText.includes('Cont') ? 'Contentieux' :
+                            (statusText.includes('eme') || statusText.includes('er')) ? 'Rappel' :
+                                'Autre';
+                        contPopUpPromise = this.page.waitForEvent('popup', { timeout: 10000 });
                     }
 
-                    // Click the view invoice button - specifically the one with icon-voir.gif (not calendar/appointment buttons)
-                    const viewButton = row.locator('input[type="image"]').first();
-                    await viewButton.waitFor({ state: 'visible' });
                     await viewButton.click();
 
-                    // If "Cont" was clicked, handle the popup
+                    // If "Cont" status, handle the popup if it appears
                     if (contPopUpPromise) {
-                        const contPopUp = await contPopUpPromise;
-                        contPopUp.close();
+                        try {
+                            const contPopUp = await contPopUpPromise;
+                            await contPopUp.close();
+                        } catch (error) {
+                            console.log('No popup appeared for Contentieux invoice, continuing...');
+                        }
                     }
 
                     await this.page.waitForLoadState('networkidle');
