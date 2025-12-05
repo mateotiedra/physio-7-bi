@@ -508,7 +508,10 @@ export class MediOnlinePageWrapper {
                     } else if (statusText.includes('Cont')) {
                         invoice.status = 'Contentieux';
                         // Prepare to handle the popup that appears when clicking "Cont" link
-                        contPopUpPromise = this.page.waitForEvent('popup');
+                        try {
+                            contPopUpPromise = (await this.page.waitForEvent('popup', { timeout: 5000 }));
+                        } catch (error) {
+                        }
                     } else {
                         invoice.status = 'Autre';
                     }
