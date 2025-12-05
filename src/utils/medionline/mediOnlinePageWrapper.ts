@@ -633,13 +633,26 @@ export class MediOnlinePageWrapper {
                         const services: ServicesInfo[] = [];
 
                         // Find the services table by looking for the header with class 'presta-head-table'
-                        const prestaTable = this.page.locator('#ctl00_CPH_ctl00_ctl10_TableInfo').locator('table').first() || this.page.locator('#ctl00_CPH_ctl00_ctl12_TableInfo').locator('table').first();
+                        const allTables = this.page.locator('table[id*="_Table_General"]');
+                        const prestaTableIndex = await allTables.locator('span').evaluateAll((spans) => {
+                            return spans.findIndex(span =>
+                                span.textContent?.includes('Prestations/Médicaments')
+                            );
+                        });
+
+                        if (prestaTableIndex === -1) {
+                            throw new MediOnlineError('No services table header found', 'SERVICES_TABLE_NOT_FOUND_FOR_SERVICES');
+                        }
+
+                        const prestaTable = allTables.nth(prestaTableIndex).locator('tbody').first().locator('table').nth(1);
+
                         await prestaTable.innerHTML();
 
                         // Found the services table, now get all data rows
                         const servicesRows = await prestaTable.locator('tbody tr').all();
 
-                        for (const serviceRow of servicesRows) {
+                        for (let idx = 0; idx < servicesRows.length; idx++) {
+                            const serviceRow = servicesRows[idx];
                             try {
                                 // Skip header row
                                 const isHeader = await serviceRow.locator('td.presta-head-table').count() > 0;
@@ -647,54 +660,58 @@ export class MediOnlinePageWrapper {
 
                                 const cells = await serviceRow.locator('td').all();
 
-                                if (cells.length >= 13) {
-                                    const service: ServicesInfo = {};
+                                const service: ServicesInfo = {};
 
-                                    // Index 1: Date (e.g., "15.02.2023")
-                                    const dateText = await cells[1].textContent();
-                                    if (dateText) {
-                                        const trimmed = dateText.trim();
-                                        const [day, month, year] = trimmed.split('.');
-                                        service.date = `${year}-${month}-${day}`;
-                                    }
-
-                                    // Index 2: Number (e.g., "1.00")
-                                    const numberText = await cells[2].textContent();
-                                    service.number = numberText ? parseFloat(numberText.trim()) : undefined;
-
-                                    // Index 4: Position Number (e.g., "7301")
-                                    const positionText = await cells[4].textContent();
-                                    service.positionNumber = positionText?.trim();
-
-                                    // Index 5: Description (e.g., "Forfait par séance individuelle pour physiothérapie générale")
-                                    const descText = await cells[5].textContent();
-                                    service.description = descText?.trim();
-
-                                    // Index 8: Unit Value (e.g., "47.04")
-                                    const unitValueText = await cells[8].textContent();
-                                    service.unitValue = unitValueText ? parseFloat(unitValueText.trim()) : undefined;
-
-                                    // Index 9: Pt Nbr (e.g., "48.00")
-                                    const ptNbrText = await cells[9].textContent();
-                                    service.ptNbr = ptNbrText ? parseFloat(ptNbrText.trim()) : undefined;
-
-                                    // Index 11: Pt Value (e.g., "0.98")
-                                    const ptValueText = await cells[11].textContent();
-                                    service.ptValue = ptValueText ? parseFloat(ptValueText.trim()) : undefined;
-
-                                    // Index 12: Amount (e.g., "47.04")
-                                    const amountText = await cells[12].textContent();
-                                    service.amount = amountText ? parseFloat(amountText.trim()) : undefined;
-
-                                    services.push(service);
+                                // Index 1: Date (e.g., "15.02.2023")
+                                const dateText = await cells[1].textContent();
+                                if (dateText) {
+                                    const trimmed = dateText.trim();
+                                    const [day, month, year] = trimmed.split('.');
+                                    service.date = `${year}-${month}-${day}`;
                                 }
+
+                                // Index 2: Number (e.g., "1.00")
+                                const numberText = await cells[2].textContent();
+                                service.number = numberText ? parseFloat(numberText.trim()) : undefined;
+
+                                // Index 4: Position Number (e.g., "7301")
+                                const positionText = await cells[4].textContent();
+                                service.positionNumber = positionText?.trim();
+
+                                // Index 5: Description (e.g., "Forfait par séance individuelle pour physiothérapie générale")
+                                const descText = await cells[5].textContent();
+                                service.description = descText?.trim();
+
+                                // Index 8: Unit Value (e.g., "47.04")
+                                const unitValueText = await cells[8].textContent();
+                                service.unitValue = unitValueText ? parseFloat(unitValueText.trim()) : undefined;
+
+                                // Index 9: Pt Nbr (e.g., "48.00")
+                                const ptNbrText = await cells[9].textContent();
+                                service.ptNbr = ptNbrText ? parseFloat(ptNbrText.trim()) : undefined;
+
+                                // Index 11: Pt Value (e.g., "0.98")
+                                const ptValueText = await cells[11].textContent();
+                                service.ptValue = ptValueText ? parseFloat(ptValueText.trim()) : undefined;
+
+                                // Index 12: Amount (e.g., "47.04")
+                                const amountText = await cells[12].textContent();
+                                service.amount = amountText ? parseFloat(amountText.trim()) : undefined;
+
+                                console.log(`DEBUG: Row ${idx} - Parsed service:`, service);
+                                services.push(service);
                             } catch (rowError) {
+                                console.error(`DEBUG: Row ${idx} - Error parsing:`, rowError);
                                 throw new MediOnlineError(`Failed to parse service row: ${rowError}`, 'SERVICE_ROW_PARSE_ERROR');
                             }
-                        }
 
-                        invoice.services = services.length > 0 ? services : undefined;
+
+                            console.log(`DEBUG: Total services parsed: ${services.length}`);
+                            invoice.services = services.length > 0 ? services : undefined;
+                            console.log(`DEBUG: invoice.services is ${invoice.services ? 'defined' : 'undefined'}`);
+                        }
                     } catch (error) {
+                        console.error('DEBUG: Error in services extraction:', error);
                         throw new MediOnlineError(`Failed to extract services: ${error}`, 'EXTRACT_SERVICES_ERROR');
                     }
 
