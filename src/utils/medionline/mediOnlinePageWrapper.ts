@@ -368,6 +368,9 @@ export class MediOnlinePageWrapper {
                     if (parts.length === 2) {
                         centre = parts[0];
                         practitioner = parts[1];
+                    } else if (parts.length === 3) {
+                        centre = parts[1];
+                        practitioner = parts[2];
                     }
                 }
             } catch (error) {
