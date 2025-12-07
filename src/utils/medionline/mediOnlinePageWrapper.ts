@@ -506,9 +506,6 @@ export class MediOnlinePageWrapper {
                             ? await statusCells[0].innerText()
                             : '';
 
-                    let contPopUpPromise;
-                    let waitForPopup = false;
-
                     if (statusText.includes('Ann')) {
                         invoice.status = 'Annulée';
                     } else if (statusText.includes('Pmt')) {
@@ -517,20 +514,12 @@ export class MediOnlinePageWrapper {
                         invoice.status = statusText.includes('Cont') ? 'Contentieux' :
                             (statusText.includes('eme') || statusText.includes('er')) ? 'Rappel' :
                                 'Autre';
-                        contPopUpPromise = this.page.waitForEvent('popup', { timeout: 10000 });
                     }
+
+                    let popUpPromise: Promise<any> | undefined;
+                    popUpPromise = this.page.waitForEvent('popup').catch(() => console.log('No popup'));
 
                     await viewButton.click();
-
-                    // If "Cont" status, handle the popup if it appears
-                    if (contPopUpPromise) {
-                        try {
-                            const contPopUp = await contPopUpPromise;
-                            await contPopUp.close();
-                        } catch (error) {
-                            console.log('No popup appeared for Contentieux invoice, continuing...');
-                        }
-                    }
 
                     await this.page.waitForLoadState('networkidle');
 
@@ -698,7 +687,6 @@ export class MediOnlinePageWrapper {
                                 const amountText = await cells[12].textContent();
                                 service.amount = amountText ? parseFloat(amountText.trim()) : undefined;
 
-                                console.log(`DEBUG: Row ${idx} - Parsed service:`, service);
                                 services.push(service);
                             } catch (rowError) {
                                 console.error(`DEBUG: Row ${idx} - Error parsing:`, rowError);
@@ -706,12 +694,9 @@ export class MediOnlinePageWrapper {
                             }
 
 
-                            console.log(`DEBUG: Total services parsed: ${services.length}`);
                             invoice.services = services.length > 0 ? services : undefined;
-                            console.log(`DEBUG: invoice.services is ${invoice.services ? 'defined' : 'undefined'}`);
                         }
                     } catch (error) {
-                        console.error('DEBUG: Error in services extraction:', error);
                         throw new MediOnlineError(`Failed to extract services: ${error}`, 'EXTRACT_SERVICES_ERROR');
                     }
 
@@ -743,7 +728,13 @@ export class MediOnlinePageWrapper {
 
                     allInvoices.push(invoice);
 
-                    await this.goBack();
+                    try {
+                        await this.goBack(2000);
+                    } catch (error) {
+                        const popup = await popUpPromise;
+                        await popup.close();
+                        await this.goBack();
+                    }
                     await this.page.waitForLoadState('networkidle');
 
                     await openCenterDivIfCollapsed();
@@ -758,8 +749,8 @@ export class MediOnlinePageWrapper {
         return allInvoices;
     }
 
-    async goBack(): Promise<void> {
-        await this.page.click('#ctl00_back');
+    async goBack(timeout?: number): Promise<void> {
+        await this.page.click('#ctl00_back', { timeout });
         await this.page.waitForLoadState('networkidle');
     }
 
