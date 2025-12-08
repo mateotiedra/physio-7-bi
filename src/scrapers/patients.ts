@@ -6,7 +6,7 @@ import { randomUUID } from 'crypto';
 // Generate a unique scraper ID for this run
 const SCRAPER_ID = randomUUID();
 
-async function uploadPatientsData(patients: PatientInfo[]): Promise<string> {
+async function uploadPatientsData(patients: PatientInfo[]): Promise<string | null> {
     if (patients.length === 0) {
         throw new Error('No patient data to upload');
     }
@@ -14,6 +14,10 @@ async function uploadPatientsData(patients: PatientInfo[]): Promise<string> {
     const patient = patients[0];
 
     const patientId = await upsertPatient(patient);
+    if (patientId === null) {
+        console.log(`Patient already exists, skipping: ${patient.nom} ${patient.prenom}`);
+        return null;
+    }
     console.log(`Patient uploaded: ${`${patient.nom} ${patient.prenom} - ${patientId}` || 'N/A'}`);
 
     return patientId;

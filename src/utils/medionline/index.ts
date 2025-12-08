@@ -105,7 +105,7 @@ class MediOnlineManager {
     }
 
     async scrapePatientDashboards(
-        uploadPatientsData: (patients: PatientInfo[]) => Promise<string>,
+        uploadPatientsData: (patients: PatientInfo[]) => Promise<string | null>,
         uploadAppointmentsData: (patientId: string, appointments: AppointmentInfo[]) => Promise<void>,
         uploadInvoicesData: (patientId: string, invoices: InvoiceInfo[]) => Promise<void>,
         trackScraperActivity: (patientId: string, pageIndex: number, rowIndex: number) => Promise<void>,
@@ -145,14 +145,20 @@ class MediOnlineManager {
                 if (!skipScraping) {
                     const patientData = await this.mpage.scrapePatientInfos();
                     const patientId = await uploadPatientsData([patientData]);
-                    const appointmentsData = await this.mpage.scrapePatientAppointments();
-                    const invoicesData = await this.mpage.scrapePatientInvoices(patientData.noAvs!);
-                    await this.mpage.goBack();
-                    await uploadAppointmentsData(patientId, appointmentsData);
-                    await uploadInvoicesData(patientId, invoicesData);
 
-                    // Track scraper activity
-                    await trackScraperActivity(patientId, currPageIndex, currPatientIndex);
+                    // If patient already exists, skip scraping their data
+                    if (patientId === null) {
+                        await this.mpage.goBack();
+                    } else {
+                        const appointmentsData = await this.mpage.scrapePatientAppointments();
+                        const invoicesData = await this.mpage.scrapePatientInvoices(patientData.noAvs!);
+                        await this.mpage.goBack();
+                        await uploadAppointmentsData(patientId, appointmentsData);
+                        await uploadInvoicesData(patientId, invoicesData);
+
+                        // Track scraper activity
+                        await trackScraperActivity(patientId, currPageIndex, currPatientIndex);
+                    }
                 }
 
                 // Try to go to the next patient search page

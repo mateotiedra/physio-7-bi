@@ -131,24 +131,8 @@ export async function upsertPatient(patient: PatientInfo): Promise<string> {
     }
 
     if (existingPatient) {
-        // Update existing patient
-        const { error } = await supabase
-            .from('patients')
-            .update(dbPatient)
-            .eq('id', existingPatient.id);
-
-        if (error) {
-            console.error('Supabase update error details:', {
-                message: error.message,
-                code: error.code,
-                details: error.details,
-                hint: error.hint,
-                fullError: error
-            });
-            throw new Error(`Failed to update patient: ${error.message}`);
-        }
-
-        return existingPatient.id;
+        // Patient already exists, return null to skip
+        return null as any;
     } else {
         // Insert new patient
         return await insertPatient(patient);
