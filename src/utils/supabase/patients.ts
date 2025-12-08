@@ -131,12 +131,62 @@ export async function upsertPatient(patient: PatientInfo): Promise<string> {
     }
 
     if (existingPatient) {
-        // Patient already exists, return null to skip
-        return null as any;
+        // Patient already exists, return existing ID
+        return existingPatient.id;
     } else {
         // Insert new patient
         return await insertPatient(patient);
     }
+}
+
+/**
+ * Check if a patient already exists based on the tuple (prenom, nom, ddn, no_avs)
+ * Returns true if patient exists, false otherwise
+ */
+export async function checkPatientExists(patient: PatientInfo): Promise<boolean> {
+    // Try to find existing patient by the tuple (prenom, nom, ddn, no_avs)
+    let query = supabase
+        .from('patients')
+        .select('id');
+
+    if (patient.prenom) {
+        query = query.eq('prenom', patient.prenom);
+    } else {
+        query = query.is('prenom', null);
+    }
+
+    if (patient.nom) {
+        query = query.eq('nom', patient.nom);
+    } else {
+        query = query.is('nom', null);
+    }
+
+    if (patient.ddn) {
+        query = query.eq('ddn', patient.ddn);
+    } else {
+        query = query.is('ddn', null);
+    }
+
+    if (patient.noAvs) {
+        query = query.eq('no_avs', patient.noAvs);
+    } else {
+        query = query.is('no_avs', null);
+    }
+
+    const { data: existingPatient, error: queryError } = await query.single();
+
+    if (queryError && queryError.code !== 'PGRST116') {
+        console.error('Supabase query error details:', {
+            message: queryError.message,
+            code: queryError.code,
+            details: queryError.details,
+            hint: queryError.hint,
+            fullError: queryError
+        });
+        throw new Error(`Failed to query patient: ${queryError.message}`);
+    }
+
+    return !!existingPatient;
 }
 
 /**

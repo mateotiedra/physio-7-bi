@@ -1,26 +1,28 @@
 import { mediOnline } from '../utils/medionline/index';
 import { AppointmentInfo, InvoiceInfo, PatientInfo } from '../utils/medionline/medionline.types';
-import { upsertPatient, insertAppointments, insertInvoices, insertScrapyActivity } from '../utils/supabase';
+import { upsertPatient, checkPatientExists, insertAppointments, insertInvoices, insertScrapyActivity } from '../utils/supabase';
 import { randomUUID } from 'crypto';
 
 // Generate a unique scraper ID for this run
 const SCRAPER_ID = randomUUID();
 
-async function uploadPatientsData(patients: PatientInfo[]): Promise<string | null> {
+async function uploadPatientsData(patients: PatientInfo[]): Promise<{ patientId: string; alreadyExists: boolean }> {
     if (patients.length === 0) {
         throw new Error('No patient data to upload');
     }
 
     const patient = patients[0];
 
+    const alreadyExists = await checkPatientExists(patient);
     const patientId = await upsertPatient(patient);
-    if (patientId === null) {
-        console.log(`Patient already exists, skipping: ${patient.nom} ${patient.prenom}`);
-        return null;
-    }
-    console.log(`Patient uploaded: ${`${patient.nom} ${patient.prenom} - ${patientId}` || 'N/A'}`);
 
-    return patientId;
+    if (alreadyExists) {
+        console.log(`Patient already exists, skipping: ${patient.nom} ${patient.prenom}`);
+    } else {
+        console.log(`Patient uploaded: ${`${patient.nom} ${patient.prenom} - ${patientId}` || 'N/A'}`);
+    }
+
+    return { patientId, alreadyExists };
 }
 
 async function uploadAppointmentsData(patientId: string, appointments: AppointmentInfo[]): Promise<void> {

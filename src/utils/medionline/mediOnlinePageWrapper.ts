@@ -517,7 +517,7 @@ export class MediOnlinePageWrapper {
                     }
 
                     let popUpPromise: Promise<any> | undefined;
-                    popUpPromise = this.page.waitForEvent('popup').catch(() => console.log('No popup'));
+                    popUpPromise = this.page.waitForEvent('popup').catch(() => null);
 
                     await viewButton.click();
 
