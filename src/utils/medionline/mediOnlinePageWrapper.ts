@@ -92,7 +92,7 @@ export class MediOnlinePageWrapper {
 
             // Count the number of rows in the search results table
             const resultTable = await this.page.locator('table#ctl00_CPH_ctl00_PatientSearchResult_GridView1 tbody').first();
-            const rowCount = await resultTable.locator('> tr').count() - 3;
+            const rowCount = await resultTable.locator('> tr:is(:not([class]), .alternateRow)').count();
 
             if (rowCount < 1) {
                 await this.goToHomepage();
@@ -146,7 +146,19 @@ export class MediOnlinePageWrapper {
         return false;
     }
 
+    private async rowExist(rowIndex: number): Promise<boolean> {
+        // Count the number of rows in the search results table to confirm navigation
+        const resultTable = this.page.locator('table#ctl00_CPH_ctl00_PatientSearchResult_GridView1 tbody').first();
+        await resultTable.innerHTML();
+        const rowCount = await resultTable.locator('> tr:is(:not([class]), .alternateRow)').count();
+        return rowIndex < rowCount;
+    }
+
     async goToPatientInfoPage(patientIndex: number): Promise<void> {
+        if (!await this.rowExist(patientIndex)) {
+            throw new MediOnlineError(`No patient row found at index ${patientIndex}`, 'PATIENT_ROW_NOT_FOUND')
+        }
+
         // Check if the patient at patientIndex exists (or is it a tiers payant row?)
         if (await this.isTiersPayantRow(patientIndex)) {
             throw new MediOnlineError(`No patient found at index ${patientIndex}`, 'TIERS_PATIENT_ROW')
@@ -156,14 +168,9 @@ export class MediOnlinePageWrapper {
         await this.page.click(`input[id="ctl00_CPH_ctl00_PatientSearchResult_GridView1_ctl${(patientIndex + 3).toString().padStart(2, '0')}_btnEdit"]`);
     }
 
-    async goToPatientSearchPage(pageIndex: number): Promise<boolean> {
+    async goToPatientSearchPage(pageIndex: number): Promise<void> {
         await this.page.waitForTimeout(1000);
         await this.page.waitForLoadState('networkidle');
-
-        // Count the number of rows in the search results table to confirm navigation
-        const resultTable = this.page.locator('table#ctl00_CPH_ctl00_PatientSearchResult_GridView1 tbody').first();
-        await resultTable.innerHTML();
-        const rowCount = await resultTable.locator('> tr').count();
 
         /* if (rowCount < 28) {
             throw new Error('You have reached the last page (the page you\'re currently on).');
@@ -174,15 +181,22 @@ export class MediOnlinePageWrapper {
         const eventArgument = `Page$${pageIndex}`;
 
         const doPostBackExists = await this.page.evaluate(() => typeof ((globalThis as any).__doPostBack) === 'function');
-        if (doPostBackExists) {
-            await this.page.evaluate(({ target, arg }) => {
-                (globalThis as any).__doPostBack(target, arg);
-            }, { target: eventTarget, arg: eventArgument });
-            await this.page.waitForLoadState('networkidle');
-            return true;
+        if (!doPostBackExists) {
+            throw new Error('Could not find pager link or perform postback');
         }
+        await this.page.evaluate(({ target, arg }) => {
+            (globalThis as any).__doPostBack(target, arg);
+        }, { target: eventTarget, arg: eventArgument });
 
-        throw new Error('Could not find pager link or perform postback');
+        await this.page.waitForTimeout(500);
+        await this.page.waitForLoadState('networkidle');
+
+        // Check if the requested page index is the current page
+        const pageSpan = this.page.locator('tr.pager td table tbody tr td span').first()
+
+        if ((await pageSpan.textContent())?.trim() !== pageIndex.toString()) {
+            throw new Error('Could not navigate to the requested page index');
+        }
     }
 
     // Helper to safely get input/select values

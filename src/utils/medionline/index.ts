@@ -127,16 +127,17 @@ class MediOnlineManager {
                 await this.mpage.goToPatientSearchPage(currPageIndex);
                 console.log(`\n\nStart scraping page ${currPageIndex}, patient index ${currPatientIndex}`);
 
-                const lastPatientOfThePage = currPatientIndex >= 24;
+                let lastPatientOfThePage = currPatientIndex >= 24;
 
                 let skipScraping = false;
                 try {
                     await this.mpage.goToPatientInfoPage(currPatientIndex);
                 } catch (error) {
-
                     if (error instanceof MediOnlineError && error.code === 'TIERS_PATIENT_ROW') {
-                        currPatientIndex++;
                         skipScraping = true;
+                    } else if (error instanceof MediOnlineError && error.code === 'PATIENT_ROW_NOT_FOUND') {
+                        console.log('Last page reached, all data fetched');
+                        break;
                     } else {
                         throw error;
                     }
