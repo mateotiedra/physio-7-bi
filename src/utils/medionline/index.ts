@@ -111,7 +111,7 @@ class MediOnlineManager {
             patients: (patients: PatientInfo[]) => Promise<{ patientId: string; alreadyExists: boolean }>,
             appointments: (patientId: string, appointments: AppointmentInfo[]) => Promise<void>,
             invoices: (patientId: string, invoices: InvoiceInfo[]) => Promise<void>,
-            scraperActivity: (patientId: string, pageIndex: number, rowIndex: number) => Promise<void>,
+            scraperActivity: (patientId: string, pageIndex: number, rowIndex: number, actionType: 'created' | 'updated' | 'skipped') => Promise<void>,
         }
     ): Promise<void> {
         if (this.status !== 'connected') {
@@ -149,19 +149,23 @@ class MediOnlineManager {
                     const patientData = await this.mpage.scrapePatientInfos();
                     const { patientId, alreadyExists } = await uploadFunctions.patients([patientData]);
 
+                    let actionType: 'created' | 'updated' | 'skipped';
+
                     // If patient already exists, skip scraping their data
                     if (alreadyExists) {
                         await this.mpage.goBack();
+                        actionType = 'skipped';
                     } else {
                         const appointmentsData = await this.mpage.scrapePatientAppointments();
                         const invoicesData = await this.mpage.scrapePatientInvoices(patientData.noAvs!);
                         await this.mpage.goBack();
                         await uploadFunctions.appointments(patientId, appointmentsData);
                         await uploadFunctions.invoices(patientId, invoicesData);
+                        actionType = 'created';
                     }
 
                     // Track scraper activity (always, even if patient already exists)
-                    await uploadFunctions.scraperActivity(patientId, currPageIndex, currPatientIndex);
+                    await uploadFunctions.scraperActivity(patientId, currPageIndex, currPatientIndex, actionType);
                 }
 
                 // Try to go to the next patient search page
@@ -193,7 +197,7 @@ class MediOnlineManager {
             patients: (patients: PatientInfo[]) => Promise<{ patientId: string; alreadyExists: boolean }>,
             appointments: (patientId: string, appointments: AppointmentInfo[]) => Promise<void>,
             invoices: (patientId: string, invoices: InvoiceInfo[]) => Promise<void>,
-            scraperActivity: (patientId: string, pageIndex: number, rowIndex: number) => Promise<void>,
+            scraperActivity: (patientId: string, pageIndex: number, rowIndex: number, actionType: 'created' | 'updated' | 'skipped') => Promise<void>,
         },
         sinceData: Date
     ): Promise<void> {

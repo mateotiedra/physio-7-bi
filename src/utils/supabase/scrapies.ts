@@ -7,7 +7,8 @@ export async function insertScrapyActivity(
     scraperId: string,
     patientId: string,
     pageIndex: number,
-    rowIndex: number
+    rowIndex: number,
+    actionType: 'created' | 'updated' | 'skipped' = 'skipped'
 ): Promise<void> {
     const { error } = await supabase
         .from('scrapies')
@@ -16,6 +17,7 @@ export async function insertScrapyActivity(
             patient_id: patientId,
             page_index: pageIndex,
             row_index: rowIndex,
+            action_type: actionType,
         });
 
     if (error) {
