@@ -4,6 +4,16 @@ import * as path from 'path';
 import { MediOnlineError, MediOnlineMultiplePatientsError, MediOnlinePatientNotFoundError, MediOnlineCreateTreatmentUnknownError, AppointmentInfo, InvoiceInfo, ServicesInfo } from "./medionline.types";
 import { PatientInfo } from "./medionline.types";
 
+export interface SearchPatientsParams {
+    firstName?: string;
+    lastName?: string;
+    dateOfBirth?: string;
+    advancedOptions?: {
+        lastModifiedStartDate?: Date;
+        lastModifiedEndDate?: Date;
+    };
+}
+
 export class MediOnlinePageWrapper {
     constructor(private context: FrameLocator | Locator | Page) { }
 
@@ -118,16 +128,7 @@ export class MediOnlinePageWrapper {
         }
     }
 
-    async searchPatients({ firstName, lastName, dateOfBirth, advancedOptions }:
-        {
-            firstName?: string;
-            lastName?: string;
-            dateOfBirth?: string;
-            advancedOptions?: {
-                lastModifiedStartDate?: Date;
-                lastModifiedEndDate?: Date;
-            };
-        }): Promise<void> {
+    async searchPatients({ firstName, lastName, dateOfBirth, advancedOptions }: SearchPatientsParams): Promise<void> {
 
         // Navigate to patient search
         await this.page.click('input[name="ctl00$btnShortcut2"]');

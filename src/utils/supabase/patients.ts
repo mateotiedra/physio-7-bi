@@ -15,7 +15,7 @@ export async function uploadPatientsData(patients: PatientInfo[]): Promise<{ pat
     const patientId = await upsertPatient(patient);
 
     if (alreadyExists) {
-        console.log(`Patient already exists, skipping: ${patient.nom} ${patient.prenom}`);
+        console.log(`Patient already exists: ${patient.nom} ${patient.prenom}`);
     } else {
         console.log(`Patient uploaded: ${`${patient.nom} ${patient.prenom} - ${patientId}` || 'N/A'}`);
     }

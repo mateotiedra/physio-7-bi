@@ -25,9 +25,11 @@ async function main() {
         let lastFailedPageIndex: number = 0;
         let lastFailedPatientIndex: number = 0;
 
+
         while (retryCount <= maxRetries) {
             try {
-                await mediOnline.scrapeAllPatientDashboards(
+                await mediOnline.setSearchParams({});
+                await mediOnline.scrapeSearchedPatients(
                     pageIndex,
                     patientIndex,
                     {

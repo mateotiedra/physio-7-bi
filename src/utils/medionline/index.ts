@@ -8,7 +8,7 @@ import {
     PatientInfo,
     MediOnlinePatientsScraperError,
 } from './medionline.types';
-import { MediOnlinePageWrapper } from './mediOnlinePageWrapper';
+import { MediOnlinePageWrapper, SearchPatientsParams } from './mediOnlinePageWrapper';
 import { config } from '../../config';
 
 
@@ -104,7 +104,14 @@ class MediOnlineManager {
         console.log('MediOnline logged out and browser closed');
     }
 
-    async scrapeAllPatientDashboards(
+    async setSearchParams(params: SearchPatientsParams): Promise<void> {
+        if (this.status !== 'connected') {
+            throw new MediOnlineError('Cannot set search params when not connected', 'NOT_CONNECTED');
+        }
+        await this.mpage.searchPatients(params);
+    }
+
+    async scrapeSearchedPatients(
         startPageIndex: number,
         startPatientIndex: number,
         uploadFunctions: {
@@ -117,9 +124,6 @@ class MediOnlineManager {
         if (this.status !== 'connected') {
             throw new MediOnlineError('Cannot query patients when not connected', 'NOT_CONNECTED');
         }
-
-        await this.mpage.searchPatients({ firstName: '', lastName: '', dateOfBirth: '' });
-        //await this.mpage.goToPatientDashboard('Alizadeh', 'Abbas', '');
 
         let currPageIndex = startPageIndex ?? parseInt(process.env.CURR_PAGE_INDEX || '1', 10);
         let currPatientIndex = startPatientIndex ?? parseInt(process.env.CURR_PATIENT_INDEX || '0', 10);
