@@ -44,25 +44,27 @@ async function main() {
     try {
         // Get command-line arguments: npm run scrape [pageIndex] [patientIndex]
         const args = process.argv.slice(2);
-        let pageIndex = args[0] ? parseInt(args[0], 10) : undefined;
-        let patientIndex = args[1] ? parseInt(args[1], 10) : undefined;
+        let pageIndex = args[0] ? parseInt(args[0], 10) : 0;
+        let patientIndex = args[1] ? parseInt(args[1], 10) : 0;
 
         await mediOnline.login(process.env.MEDIONLINE_USERNAME!, process.env.MEDIONLINE_PASSWORD!);
 
         let retryCount = 0;
         const maxRetries = 3;
-        let lastFailedPageIndex: number | undefined;
-        let lastFailedPatientIndex: number | undefined;
+        let lastFailedPageIndex: number = 0;
+        let lastFailedPatientIndex: number = 0;
 
         while (retryCount <= maxRetries) {
             try {
-                await mediOnline.scrapePatientDashboards(
-                    uploadPatientsData,
-                    uploadAppointmentsData,
-                    uploadInvoicesData,
-                    trackScraperActivity,
+                await mediOnline.scrapeAllPatientDashboards(
                     pageIndex,
-                    patientIndex
+                    patientIndex,
+                    {
+                        patients: uploadPatientsData,
+                        appointments: uploadAppointmentsData,
+                        invoices: uploadInvoicesData,
+                        scraperActivity: trackScraperActivity,
+                    }
                 );
                 break; // Success, exit retry loop
             } catch (error: any) {

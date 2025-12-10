@@ -118,18 +118,39 @@ export class MediOnlinePageWrapper {
         }
     }
 
-    async searchPatients({ firstName, lastName, dateOfBirth }: { firstName: string; lastName: string; dateOfBirth: string }): Promise<void> {
+    async searchPatients({ firstName, lastName, dateOfBirth, advancedOptions }:
+        {
+            firstName?: string;
+            lastName?: string;
+            dateOfBirth?: string;
+            advancedOptions?: {
+                lastModifiedStartDate?: Date;
+                lastModifiedEndDate?: Date;
+            };
+        }): Promise<void> {
 
         // Navigate to patient search
         await this.page.click('input[name="ctl00$btnShortcut2"]');
         await this.page.waitForLoadState('networkidle');
 
-        // Fill in patient details and search
-        await this.page.fill('input[name="ctl00$CPH$ctl00$patientSearch1$txtLastName"]', lastName);
-        await this.page.fill('input[name="ctl00$CPH$ctl00$patientSearch1$txtFirstName"]', firstName);
-        await this.page.fill('input[name="ctl00$CPH$ctl00$patientSearch1$txtBirthdate"]', dateOfBirth);
-        await this.page.click('input[name="ctl00$CPH$ctl00$patientSearch1$btnAdvancedSearch"]');
+        // Reset previous search criteria
+        await this.page.click('input[id="ctl00_CPH_ctl00_patientSearch1_btnAdvancedReset"]');
+        await this.page.waitForTimeout(500);
+        await this.page.waitForLoadState('networkidle');
 
+        // Fill in patient details and search
+        lastName && await this.page.fill('input[name="ctl00$CPH$ctl00$patientSearch1$txtLastName"]', lastName);
+        firstName && await this.page.fill('input[name="ctl00$CPH$ctl00$patientSearch1$txtFirstName"]', firstName);
+        dateOfBirth && await this.page.fill('input[name="ctl00$CPH$ctl00$patientSearch1$txtBirthdate"]', dateOfBirth);
+
+        if (advancedOptions) {
+            await this.page.click('a[id="ctl00_CPH_ctl00_patientSearch1_advancedSearchBlock"]');
+            advancedOptions.lastModifiedStartDate && await this.page.fill('input[name="ctl00$CPH$ctl00$patientSearch1$txtModificationStartDate"]', advancedOptions.lastModifiedStartDate.toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: 'numeric' }));
+            advancedOptions.lastModifiedEndDate && await this.page.fill('input[id="ctl00_CPH_ctl00_patientSearch1_txtModificationEndDate"]', advancedOptions.lastModifiedEndDate.toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: 'numeric' }));
+        }
+
+        await this.page.click('input[name="ctl00$CPH$ctl00$patientSearch1$btnAdvancedSearch"]');
+        await this.page.waitForTimeout(500);
         await this.page.waitForLoadState('networkidle');
     }
 

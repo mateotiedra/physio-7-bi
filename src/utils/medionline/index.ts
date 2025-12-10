@@ -104,13 +104,15 @@ class MediOnlineManager {
         console.log('MediOnline logged out and browser closed');
     }
 
-    async scrapePatientDashboards(
-        uploadPatientsData: (patients: PatientInfo[]) => Promise<{ patientId: string; alreadyExists: boolean }>,
-        uploadAppointmentsData: (patientId: string, appointments: AppointmentInfo[]) => Promise<void>,
-        uploadInvoicesData: (patientId: string, invoices: InvoiceInfo[]) => Promise<void>,
-        trackScraperActivity: (patientId: string, pageIndex: number, rowIndex: number) => Promise<void>,
-        startPageIndex?: number,
-        startPatientIndex?: number
+    async scrapeAllPatientDashboards(
+        startPageIndex: number,
+        startPatientIndex: number,
+        uploadFunctions: {
+            patients: (patients: PatientInfo[]) => Promise<{ patientId: string; alreadyExists: boolean }>,
+            appointments: (patientId: string, appointments: AppointmentInfo[]) => Promise<void>,
+            invoices: (patientId: string, invoices: InvoiceInfo[]) => Promise<void>,
+            scraperActivity: (patientId: string, pageIndex: number, rowIndex: number) => Promise<void>,
+        }
     ): Promise<void> {
         if (this.status !== 'connected') {
             throw new MediOnlineError('Cannot query patients when not connected', 'NOT_CONNECTED');
@@ -145,7 +147,7 @@ class MediOnlineManager {
 
                 if (!skipScraping) {
                     const patientData = await this.mpage.scrapePatientInfos();
-                    const { patientId, alreadyExists } = await uploadPatientsData([patientData]);
+                    const { patientId, alreadyExists } = await uploadFunctions.patients([patientData]);
 
                     // If patient already exists, skip scraping their data
                     if (alreadyExists) {
@@ -154,12 +156,12 @@ class MediOnlineManager {
                         const appointmentsData = await this.mpage.scrapePatientAppointments();
                         const invoicesData = await this.mpage.scrapePatientInvoices(patientData.noAvs!);
                         await this.mpage.goBack();
-                        await uploadAppointmentsData(patientId, appointmentsData);
-                        await uploadInvoicesData(patientId, invoicesData);
+                        await uploadFunctions.appointments(patientId, appointmentsData);
+                        await uploadFunctions.invoices(patientId, invoicesData);
                     }
 
                     // Track scraper activity (always, even if patient already exists)
-                    await trackScraperActivity(patientId, currPageIndex, currPatientIndex);
+                    await uploadFunctions.scraperActivity(patientId, currPageIndex, currPatientIndex);
                 }
 
                 // Try to go to the next patient search page
@@ -185,6 +187,23 @@ class MediOnlineManager {
             );
         }
     }
+
+    async scrapeRecentModifications(
+        uploadFunctions: {
+            patients: (patients: PatientInfo[]) => Promise<{ patientId: string; alreadyExists: boolean }>,
+            appointments: (patientId: string, appointments: AppointmentInfo[]) => Promise<void>,
+            invoices: (patientId: string, invoices: InvoiceInfo[]) => Promise<void>,
+            scraperActivity: (patientId: string, pageIndex: number, rowIndex: number) => Promise<void>,
+        },
+        sinceData: Date
+    ): Promise<void> {
+        if (this.status !== 'connected') {
+            throw new MediOnlineError('Cannot query patients when not connected', 'NOT_CONNECTED');
+        }
+
+        await this.mpage.searchPatients({ advancedOptions: { lastModifiedStartDate: sinceData } });
+    }
+
 }
 
 export const mediOnline = new MediOnlineManager(process.env.HEADLESS_MODE === 'true', 60000);
