@@ -2,6 +2,14 @@ import { supabase } from './client';
 import { AppointmentInfo } from '../medionline/medionline.types';
 
 /**
+ * Upload appointments data - wrapper for scraper interface
+ */
+export async function uploadAppointmentsData(patientId: string, appointments: AppointmentInfo[]): Promise<void> {
+    await insertAppointments(patientId, appointments);
+    console.log(`Successfully uploaded ${appointments.length} appointments`);
+}
+
+/**
  * Maps AppointmentInfo from scraper to database column names
  */
 function mapAppointmentToDb(patientId: string, appointment: AppointmentInfo) {

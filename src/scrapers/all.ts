@@ -1,44 +1,15 @@
 import { mediOnline } from '../utils/medionline/index';
-import { AppointmentInfo, InvoiceInfo, PatientInfo } from '../utils/medionline/medionline.types';
-import { upsertPatient, checkPatientExists, insertAppointments, insertInvoices, insertScrapyActivity } from '../utils/supabase';
-import { randomUUID } from 'crypto';
+import {
+    uploadPatientsData,
+    uploadAppointmentsData,
+    uploadInvoicesData,
+    trackScraperActivity,
+    generateScraperId
+} from '../utils/supabase';
 
 // Generate a unique scraper ID for this run
-const SCRAPER_ID = randomUUID();
-
-async function uploadPatientsData(patients: PatientInfo[]): Promise<{ patientId: string; alreadyExists: boolean }> {
-    if (patients.length === 0) {
-        throw new Error('No patient data to upload');
-    }
-
-    const patient = patients[0];
-
-    const alreadyExists = await checkPatientExists(patient);
-    const patientId = await upsertPatient(patient);
-
-    if (alreadyExists) {
-        console.log(`Patient already exists, skipping: ${patient.nom} ${patient.prenom}`);
-    } else {
-        console.log(`Patient uploaded: ${`${patient.nom} ${patient.prenom} - ${patientId}` || 'N/A'}`);
-    }
-
-    return { patientId, alreadyExists };
-}
-
-async function uploadAppointmentsData(patientId: string, appointments: AppointmentInfo[]): Promise<void> {
-    await insertAppointments(patientId, appointments);
-    console.log(`Successfully uploaded ${appointments.length} appointments`);
-}
-
-async function uploadInvoicesData(patientId: string, invoices: InvoiceInfo[]): Promise<void> {
-    await insertInvoices(patientId, invoices);
-    console.log(`Successfully uploaded ${invoices.length} invoices with their services`);
-}
-
-async function trackScraperActivity(patientId: string, pageIndex: number, rowIndex: number, actionType: 'created' | 'updated' | 'skipped'): Promise<void> {
-    await insertScrapyActivity(SCRAPER_ID, patientId, pageIndex, rowIndex, actionType);
-    console.log(`Tracked scraper activity: page ${pageIndex}, row ${rowIndex}, action: ${actionType}`);
-}
+const SCRAPER_ID = generateScraperId();
+console.log(`Starting scraper with ID: ${SCRAPER_ID}`);
 
 async function main() {
     try {

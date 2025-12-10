@@ -2,6 +2,14 @@ import { supabase } from './client';
 import { InvoiceInfo, ServicesInfo } from '../medionline/medionline.types';
 
 /**
+ * Upload invoices data - wrapper for scraper interface
+ */
+export async function uploadInvoicesData(patientId: string, invoices: InvoiceInfo[]): Promise<void> {
+    await insertInvoices(patientId, invoices);
+    console.log(`Successfully uploaded ${invoices.length} invoices with their services`);
+}
+
+/**
  * Maps InvoiceInfo from scraper to database column names
  */
 function mapInvoiceToDb(patientId: string, invoice: InvoiceInfo) {

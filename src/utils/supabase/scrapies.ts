@@ -1,4 +1,35 @@
 import { supabase } from './client';
+import { randomUUID } from 'crypto';
+
+// Store the current scraper ID
+let CURRENT_SCRAPER_ID: string | null = null;
+
+/**
+ * Generate a new scraper ID for this run
+ */
+export function generateScraperId(): string {
+    CURRENT_SCRAPER_ID = randomUUID();
+    return CURRENT_SCRAPER_ID;
+}
+
+/**
+ * Get the current scraper ID
+ */
+export function getCurrentScraperId(): string {
+    if (!CURRENT_SCRAPER_ID) {
+        throw new Error('Scraper ID not initialized. Call generateScraperId() first.');
+    }
+    return CURRENT_SCRAPER_ID;
+}
+
+/**
+ * Track scraper activity - wrapper for scraper interface
+ */
+export async function trackScraperActivity(patientId: string, pageIndex: number, rowIndex: number, actionType: 'created' | 'updated' | 'skipped'): Promise<void> {
+    const scraperId = getCurrentScraperId();
+    await insertScrapyActivity(scraperId, patientId, pageIndex, rowIndex, actionType);
+    console.log(`Tracked scraper activity: page ${pageIndex}, row ${rowIndex}, action: ${actionType}`);
+}
 
 /**
  * Insert a scraper activity record

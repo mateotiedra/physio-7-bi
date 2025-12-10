@@ -1,6 +1,27 @@
 import { PatientInfo } from '../medionline/medionline.types';
 import { supabase } from './client';
 
+/**
+ * Upload patients data - wrapper for scraper interface
+ */
+export async function uploadPatientsData(patients: PatientInfo[]): Promise<{ patientId: string; alreadyExists: boolean }> {
+    if (patients.length === 0) {
+        throw new Error('No patient data to upload');
+    }
+
+    const patient = patients[0];
+
+    const alreadyExists = await checkPatientExists(patient);
+    const patientId = await upsertPatient(patient);
+
+    if (alreadyExists) {
+        console.log(`Patient already exists, skipping: ${patient.nom} ${patient.prenom}`);
+    } else {
+        console.log(`Patient uploaded: ${`${patient.nom} ${patient.prenom} - ${patientId}` || 'N/A'}`);
+    }
+
+    return { patientId, alreadyExists };
+}
 
 /**
  * Maps PatientInfo from scraper to database column names
