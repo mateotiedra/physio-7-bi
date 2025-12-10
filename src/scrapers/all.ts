@@ -35,9 +35,9 @@ async function uploadInvoicesData(patientId: string, invoices: InvoiceInfo[]): P
     console.log(`Successfully uploaded ${invoices.length} invoices with their services`);
 }
 
-async function trackScraperActivity(patientId: string, pageIndex: number, rowIndex: number): Promise<void> {
-    await insertScrapyActivity(SCRAPER_ID, patientId, pageIndex, rowIndex);
-    console.log(`Tracked scraper activity: page ${pageIndex}, row ${rowIndex}`);
+async function trackScraperActivity(patientId: string, pageIndex: number, rowIndex: number, actionType: 'created' | 'updated' | 'skipped'): Promise<void> {
+    await insertScrapyActivity(SCRAPER_ID, patientId, pageIndex, rowIndex, actionType);
+    console.log(`Tracked scraper activity: page ${pageIndex}, row ${rowIndex}, action: ${actionType}`);
 }
 
 async function main() {
