@@ -194,10 +194,6 @@ export class MediOnlinePageWrapper {
         await this.page.waitForTimeout(1000);
         await this.page.waitForLoadState('networkidle');
 
-        /* if (rowCount < 28) {
-            throw new Error('You have reached the last page (the page you\'re currently on).');
-        } */
-
         // This executes inside the page and triggers the same server-side postback as clicking the link.
         const eventTarget = 'ctl00$CPH$ctl00$PatientSearchResult$GridView1';
         const eventArgument = `Page$${pageIndex}`;
@@ -215,9 +211,9 @@ export class MediOnlinePageWrapper {
 
         // Check if the requested page index is the current page
         const pageSpan = this.page.locator('tr.pager td table tbody tr td span').first()
-
-        if ((await pageSpan.textContent())?.trim() !== pageIndex.toString()) {
-            throw new Error('Could not navigate to the requested page index');
+        const foundPageIndex = (await pageSpan.textContent())?.trim();
+        if (foundPageIndex !== pageIndex.toString()) {
+            throw new Error('Could not navigate to the requested page index, page found : ' + foundPageIndex);
         }
     }
 
