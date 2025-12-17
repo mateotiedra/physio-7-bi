@@ -1,13 +1,6 @@
 import { supabase } from './client';
 import { AppointmentInfo } from '../medionline/medionline.types';
-
-/**
- * Upload appointments data - wrapper for scraper interface
- */
-export async function uploadAppointmentsData(patientId: string, appointments: AppointmentInfo[]): Promise<void> {
-    await insertAppointments(patientId, appointments);
-    console.log(`Successfully uploaded ${appointments.length} appointments`);
-}
+import { UpsertStats } from './supabase.types';
 
 /**
  * Maps AppointmentInfo from scraper to database column names
@@ -26,43 +19,84 @@ function mapAppointmentToDb(patientId: string, appointment: AppointmentInfo) {
 }
 
 /**
- * Insert multiple appointments for a patient
- * Checks for existing appointments to prevent duplicates
+ * Insert a single appointment
  */
-export async function insertAppointments(
+async function insertAppointment(patientId: string, appointment: AppointmentInfo): Promise<void> {
+    const dbAppointment = mapAppointmentToDb(patientId, appointment);
+    const { error } = await supabase
+        .from('appointments')
+        .insert(dbAppointment as any);
+
+    if (error) {
+        throw new Error(`Failed to insert appointment: ${error.message}`);
+    }
+}
+
+/**
+ * Upsert multiple appointments for a patient
+ * Returns statistics about created, updated, and skipped appointments
+ */
+export async function upsertAppointments(
     patientId: string,
     appointments: AppointmentInfo[]
-): Promise<void> {
+): Promise<UpsertStats> {
     if (appointments.length === 0) {
-        return;
+        return { created: 0, updated: 0, skipped: 0 };
     }
+
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
 
     for (const appointment of appointments) {
         // Check if appointment already exists (by patient_id + date)
+        let existingAppointment = null;
         if (appointment.date) {
             const { data: existing } = await supabase
                 .from('appointments')
-                .select('id')
+                .select('*')
                 .eq('patient_id', patientId)
                 .eq('date', appointment.date)
                 .single();
 
-            if (existing) {
-                console.log(`Appointment for patient ${patientId} at ${appointment.date} already exists, skipping...`);
+            existingAppointment = existing;
+        }
+
+        if (existingAppointment) {
+            const dbAppointment = mapAppointmentToDb(patientId, appointment);
+
+            // Check if appointment data has changed
+            const hasChanged = Object.keys(dbAppointment).some(key => {
+                const existingValue = existingAppointment[key as keyof typeof existingAppointment];
+                const newValue = dbAppointment[key as keyof typeof dbAppointment];
+                // Compare values, treating null and undefined as equal
+                return (existingValue ?? null) !== (newValue ?? null);
+            });
+
+            if (!hasChanged) {
+                skipped++;
                 continue;
             }
-        }
 
-        // Insert appointment
-        const dbAppointment = mapAppointmentToDb(patientId, appointment);
-        const { error } = await supabase
-            .from('appointments')
-            .insert(dbAppointment as any);
+            // Update existing appointment
+            const { error: updateError } = await supabase
+                .from('appointments')
+                .update(dbAppointment)
+                .eq('id', existingAppointment.id);
 
-        if (error) {
-            throw new Error(`Failed to insert appointment: ${error.message}`);
+            if (updateError) {
+                throw new Error(`Failed to update appointment: ${updateError.message}`);
+            }
+
+            updated++;
+        } else {
+            // Insert new appointment
+            await insertAppointment(patientId, appointment);
+            created++;
         }
     }
+
+    return { created, updated, skipped };
 }
 
 /**

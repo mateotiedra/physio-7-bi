@@ -1,13 +1,6 @@
 import { supabase } from './client';
 import { InvoiceInfo, ServicesInfo } from '../medionline/medionline.types';
-
-/**
- * Upload invoices data - wrapper for scraper interface
- */
-export async function uploadInvoicesData(patientId: string, invoices: InvoiceInfo[]): Promise<void> {
-    const { created, updated, skipped } = await upsertInvoices(patientId, invoices);
-    console.log(`Invoices: ${created} created, ${updated} updated, ${skipped} skipped (total: ${invoices.length})`);
-}
+import { UpsertStats } from './supabase.types';
 
 /**
  * Maps InvoiceInfo from scraper to database column names
@@ -91,7 +84,7 @@ async function insertInvoice(patientId: string, invoice: InvoiceInfo): Promise<v
 export async function upsertInvoices(
     patientId: string,
     invoices: InvoiceInfo[]
-): Promise<{ created: number; updated: number; skipped: number }> {
+): Promise<UpsertStats> {
     if (invoices.length === 0) {
         return { created: 0, updated: 0, skipped: 0 };
     }

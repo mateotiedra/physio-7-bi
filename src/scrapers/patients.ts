@@ -1,8 +1,8 @@
 import { mediOnline } from '../utils/medionline/index';
 import {
     uploadPatientsData,
-    uploadAppointmentsData,
-    uploadInvoicesData,
+    upsertAppointments,
+    upsertInvoices,
     trackScraperActivity,
     generateScraperId,
     deletePatient
@@ -42,8 +42,8 @@ async function main() {
                     patientIndex,
                     {
                         patients: uploadPatientsData,
-                        appointments: uploadAppointmentsData,
-                        invoices: uploadInvoicesData,
+                        appointments: upsertAppointments,
+                        invoices: upsertInvoices,
                         scraperActivity: trackScraperActivity,
                         deletePatient: deletePatient,
                     }

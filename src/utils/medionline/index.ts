@@ -9,6 +9,7 @@ import {
     MediOnlinePatientsScraperError,
 } from './medionline.types';
 import { MediOnlinePageWrapper, SearchPatientsParams } from './mediOnlinePageWrapper';
+import { UpsertStats } from '../supabase/supabase.types';
 import { config } from '../../config';
 
 
@@ -116,8 +117,8 @@ class MediOnlineManager {
         startPatientIndex: number,
         uploadFunctions: {
             patients: (patients: PatientInfo[]) => Promise<{ patientId: string; actionType: 'created' | 'updated' | 'skipped' }>,
-            appointments: (patientId: string, appointments: AppointmentInfo[]) => Promise<void>,
-            invoices: (patientId: string, invoices: InvoiceInfo[]) => Promise<void>,
+            appointments: (patientId: string, appointments: AppointmentInfo[]) => Promise<UpsertStats>,
+            invoices: (patientId: string, invoices: InvoiceInfo[]) => Promise<UpsertStats>,
             scraperActivity: (patientId: string, pageIndex: number, rowIndex: number, actionType: 'created' | 'updated' | 'skipped') => Promise<void>,
             deletePatient: (patientId: string) => Promise<void>,
         }
@@ -164,8 +165,13 @@ class MediOnlineManager {
                         const appointmentsData = await this.mpage.scrapePatientAppointments();
                         const invoicesData = await this.mpage.scrapePatientInvoices(patientData.noAvs!);
                         await this.mpage.goBack();
-                        await uploadFunctions.appointments(patientId, appointmentsData);
-                        await uploadFunctions.invoices(patientId, invoicesData);
+
+                        const { created: appointmentsCreated, updated: appointmentsUpdated, skipped: appointmentsSkipped } = await uploadFunctions.appointments(patientId, appointmentsData);
+                        console.log(`Appointments: ${appointmentsCreated} created, ${appointmentsUpdated} updated, ${appointmentsSkipped} skipped (total: ${appointmentsData.length})`);
+
+                        const { created: invoicesCreated, updated: invoicesUpdated, skipped: invoicesSkipped } = await uploadFunctions.invoices(patientId, invoicesData);
+                        console.log(`Invoices: ${invoicesCreated} created, ${invoicesUpdated} updated, ${invoicesSkipped} skipped (total: ${invoicesData.length})`);
+
 
                         // Track scraper activity with the action type from patient upsert
                         await uploadFunctions.scraperActivity(patientId, currPageIndex, currPatientIndex, result.actionType);
