@@ -64,6 +64,8 @@ function mapPatientToDb(patient: PatientInfo) {
         contact: patient.contact ?? null,
         representant_legal: patient.representantLegal ?? null,
         commentaire: patient.commentaire ?? null,
+        registered_at: patient.registeredAt ?? null,
+        details_updated_at: patient.detailsUpdatedAt ?? null,
     };
 }
 
@@ -188,10 +190,16 @@ export async function upsertPatient(patient: PatientInfo): Promise<{ patientId: 
     if (existingPatient) {
         // Check if patient data has changed
         const hasChanged = Object.keys(dbPatient).some(key => {
+            if (key === 'registered_at' || key === 'details_updated_at') return false; // Skip MediOnline timestamp fields
             const existingValue = existingPatient[key as keyof typeof existingPatient];
             const newValue = dbPatient[key as keyof typeof dbPatient];
             // Compare values, treating null and undefined as equal
-            return (existingValue ?? null) !== (newValue ?? null);
+            const valueChanged = (existingValue ?? null) !== (newValue ?? null)
+            if (valueChanged) {
+                console.log('Patient field changed:', key, 'from', existingValue, 'to', newValue);
+                return true;
+            }
+            return false;
         });
 
         if (!hasChanged) {

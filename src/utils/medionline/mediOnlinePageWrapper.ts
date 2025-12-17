@@ -198,16 +198,27 @@ export class MediOnlinePageWrapper {
         const eventTarget = 'ctl00$CPH$ctl00$PatientSearchResult$GridView1';
         const eventArgument = `Page$${pageIndex}`;
 
-        const doPostBackExists = await this.page.evaluate(() => typeof ((globalThis as any).__doPostBack) === 'function');
-        if (!doPostBackExists) {
-            throw new Error('Could not find pager link or perform postback');
-        }
-        await this.page.evaluate(({ target, arg }) => {
-            (globalThis as any).__doPostBack(target, arg);
-        }, { target: eventTarget, arg: eventArgument });
+        try {
+            const doPostBackExists = await this.page.evaluate(() => typeof ((globalThis as any).__doPostBack) === 'function');
+            if (!doPostBackExists) {
+                throw new Error('Could not find pager link or perform postback');
+            }
 
-        await this.page.waitForTimeout(500);
-        await this.page.waitForLoadState('networkidle');
+            await this.page.evaluate(({ target, arg }) => {
+                (globalThis as any).__doPostBack(target, arg);
+            }, { target: eventTarget, arg: eventArgument });
+
+            await this.page.waitForTimeout(500);
+            await this.page.waitForLoadState('networkidle');
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            if (errorMessage.includes('Execution context was destroyed')) {
+                // If context was destroyed, wait for page to reload
+                await this.page.waitForLoadState('networkidle', { timeout: 10000 });
+            } else {
+                throw error;
+            }
+        }
 
         // Check if the requested page index is the current page
         const pageSpan = this.page.locator('tr.pager td table tbody tr td span').first()
@@ -242,6 +253,9 @@ export class MediOnlinePageWrapper {
         }
         // fallback: try to read selectedIndex via evaluate
         try {
+            // Wait for page to be stable before evaluating
+            await this.page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => { });
+
             return await this.page.evaluate((sel) => {
                 const doc: any = (globalThis as any).document;
                 if (!doc) return undefined;
@@ -252,7 +266,13 @@ export class MediOnlinePageWrapper {
                 const text = o ? (o.text || o.textContent || '').trim() : undefined;
                 return text;
             }, selector);
-        } catch {
+        } catch (error) {
+            // If evaluation fails due to navigation or destroyed context, return undefined
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            if (errorMessage.includes('Execution context was destroyed') ||
+                errorMessage.includes('navigation')) {
+                console.warn(`getSelectText: Context destroyed during evaluation for ${selector}`);
+            }
             return undefined;
         }
     };
@@ -273,6 +293,21 @@ export class MediOnlinePageWrapper {
             return undefined;
         }
     };
+
+    /**
+     * Parse MediOnline timestamp strings like "le 17.12.2025 par Jaxel Ingrid" 
+     * and convert to ISO format (YYYY-MM-DD)
+     */
+    private parseMediOnlineTimestamp(text: string | null): string | undefined {
+        if (!text) return undefined;
+
+        // Extract date pattern DD.MM.YYYY from text like "le 17.12.2025 par Jaxel Ingrid"
+        const dateMatch = text.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+        if (!dateMatch) return undefined;
+
+        const [, day, month, year] = dateMatch;
+        return `${year}-${month}-${day}`;
+    }
 
     async scrapePatientInfos(): Promise<PatientInfo> {
         const info: PatientInfo = {};
@@ -354,6 +389,13 @@ export class MediOnlinePageWrapper {
 
         // Comment textarea
         info.commentaire = await this.getInputValue('#ctl00_CPH_ctl00_patientDetails_txtComment');
+
+        // Created and updated timestamps
+        const createdText = await this.page.locator('div[id="ctl00_CPH_ctl00_patientDetails_divCreation"]').textContent();
+        info.registeredAt = this.parseMediOnlineTimestamp(createdText);
+
+        const updatedText = await this.page.locator('div[id="ctl00_CPH_ctl00_patientDetails_divModification"]').textContent();
+        info.detailsUpdatedAt = this.parseMediOnlineTimestamp(updatedText);
 
         return info;
     }

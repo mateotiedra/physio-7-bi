@@ -192,6 +192,8 @@ export interface PatientInfo {
     contact?: string,
     representantLegal?: string,
     commentaire?: string,
+    registeredAt?: string,
+    detailsUpdatedAt?: string,
 }
 
 export interface AppointmentInfo {
