@@ -4,23 +4,24 @@ import { supabase } from './client';
 /**
  * Upload patients data - wrapper for scraper interface
  */
-export async function uploadPatientsData(patients: PatientInfo[]): Promise<{ patientId: string; alreadyExists: boolean }> {
+export async function uploadPatientsData(patients: PatientInfo[]): Promise<{ patientId: string; actionType: 'created' | 'updated' | 'skipped' }> {
     if (patients.length === 0) {
         throw new Error('No patient data to upload');
     }
 
     const patient = patients[0];
 
-    const alreadyExists = await checkPatientExists(patient);
-    const patientId = await upsertPatient(patient);
+    const { patientId, actionType } = await upsertPatient(patient);
 
-    if (alreadyExists) {
-        console.log(`Patient already exists: ${patient.nom} ${patient.prenom}`);
+    if (actionType === 'created') {
+        console.log(`Patient created: ${patient.nom} ${patient.prenom} - ${patientId}`);
+    } else if (actionType === 'updated') {
+        console.log(`Patient updated: ${patient.nom} ${patient.prenom} - ${patientId}`);
     } else {
-        console.log(`Patient uploaded: ${`${patient.nom} ${patient.prenom} - ${patientId}` || 'N/A'}`);
+        console.log(`Patient skipped (up to date): ${patient.nom} ${patient.prenom} - ${patientId}`);
     }
 
-    return { patientId, alreadyExists };
+    return { patientId, actionType };
 }
 
 /**
@@ -103,16 +104,49 @@ export async function insertPatient(patient: PatientInfo): Promise<string> {
 }
 
 /**
- * Upsert a patient (update if exists, insert if not) based on the tuple (prenom, nom, ddn, no_avs)
- * Returns the patient UUID
+ * Delete a patient by ID
  */
-export async function upsertPatient(patient: PatientInfo): Promise<string> {
+export async function deletePatient(patientId: string): Promise<void> {
+    try {
+        const { error } = await supabase
+            .from('patients')
+            .delete()
+            .eq('id', patientId);
+
+        if (error) {
+            console.error('Supabase delete error details:', {
+                message: error.message,
+                code: error.code,
+                details: error.details,
+                hint: error.hint,
+                fullError: error
+            });
+            throw new Error(`Failed to delete patient: ${error.message}`);
+        }
+
+        console.log(`Patient deleted: ${patientId}`);
+    } catch (err) {
+        console.error('Network/fetch error during delete:', {
+            error: err,
+            errorType: err instanceof Error ? err.constructor.name : typeof err,
+            errorMessage: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined
+        });
+        throw err;
+    }
+}
+
+/**
+ * Upsert a patient (update if exists, insert if not) based on the tuple (prenom, nom, ddn, no_avs)
+ * Returns the patient UUID and action type (created, updated, or skipped)
+ */
+export async function upsertPatient(patient: PatientInfo): Promise<{ patientId: string; actionType: 'created' | 'updated' | 'skipped' }> {
     const dbPatient = mapPatientToDb(patient);
 
     // Try to find existing patient by the tuple (prenom, nom, ddn, no_avs)
     let query = supabase
         .from('patients')
-        .select('id');
+        .select('*');
 
     if (patient.prenom) {
         query = query.eq('prenom', patient.prenom);
@@ -152,13 +186,44 @@ export async function upsertPatient(patient: PatientInfo): Promise<string> {
     }
 
     if (existingPatient) {
-        // Patient already exists, return existing ID
-        return existingPatient.id;
+        // Check if patient data has changed
+        const hasChanged = Object.keys(dbPatient).some(key => {
+            const existingValue = existingPatient[key as keyof typeof existingPatient];
+            const newValue = dbPatient[key as keyof typeof dbPatient];
+            // Compare values, treating null and undefined as equal
+            return (existingValue ?? null) !== (newValue ?? null);
+        });
+
+        if (!hasChanged) {
+            // Patient is up to date
+            return { patientId: existingPatient.id, actionType: 'skipped' };
+        }
+
+        // Update existing patient
+        const { error: updateError } = await supabase
+            .from('patients')
+            .update(dbPatient)
+            .eq('id', existingPatient.id);
+
+        if (updateError) {
+            console.error('Supabase update error details:', {
+                message: updateError.message,
+                code: updateError.code,
+                details: updateError.details,
+                hint: updateError.hint,
+                fullError: updateError
+            });
+            throw new Error(`Failed to update patient: ${updateError.message}`);
+        }
+
+        return { patientId: existingPatient.id, actionType: 'updated' };
     } else {
         // Insert new patient
-        return await insertPatient(patient);
+        const patientId = await insertPatient(patient);
+        return { patientId, actionType: 'created' };
     }
 }
+
 
 /**
  * Check if a patient already exists based on the tuple (prenom, nom, ddn, no_avs)

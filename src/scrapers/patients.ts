@@ -4,7 +4,8 @@ import {
     uploadAppointmentsData,
     uploadInvoicesData,
     trackScraperActivity,
-    generateScraperId
+    generateScraperId,
+    deletePatient
 } from '../utils/supabase';
 
 // Generate a unique scraper ID for this run
@@ -44,6 +45,7 @@ async function main() {
                         appointments: uploadAppointmentsData,
                         invoices: uploadInvoicesData,
                         scraperActivity: trackScraperActivity,
+                        deletePatient: deletePatient,
                     }
                 );
                 break; // Success, exit retry loop

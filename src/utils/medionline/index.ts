@@ -115,10 +115,11 @@ class MediOnlineManager {
         startPageIndex: number,
         startPatientIndex: number,
         uploadFunctions: {
-            patients: (patients: PatientInfo[]) => Promise<{ patientId: string; alreadyExists: boolean }>,
+            patients: (patients: PatientInfo[]) => Promise<{ patientId: string; actionType: 'created' | 'updated' | 'skipped' }>,
             appointments: (patientId: string, appointments: AppointmentInfo[]) => Promise<void>,
             invoices: (patientId: string, invoices: InvoiceInfo[]) => Promise<void>,
             scraperActivity: (patientId: string, pageIndex: number, rowIndex: number, actionType: 'created' | 'updated' | 'skipped') => Promise<void>,
+            deletePatient: (patientId: string) => Promise<void>,
         }
     ): Promise<void> {
         if (this.status !== 'connected') {
@@ -150,26 +151,37 @@ class MediOnlineManager {
                 }
 
                 if (!skipScraping) {
-                    const patientData = await this.mpage.scrapePatientInfos();
-                    const { patientId, alreadyExists } = await uploadFunctions.patients([patientData]);
+                    let patientId: string | undefined;
+                    let wasPatientCreated = false;
 
-                    let actionType: 'created' | 'updated' | 'skipped';
+                    try {
+                        const patientData = await this.mpage.scrapePatientInfos();
+                        const result = await uploadFunctions.patients([patientData]);
+                        patientId = result.patientId;
+                        wasPatientCreated = result.actionType === 'created';
 
-                    // If patient already exists, skip scraping their data
-                    if (alreadyExists) {
-                        await this.mpage.goBack();
-                        actionType = 'skipped';
-                    } else {
+                        // Scrape and upload appointments and invoices
                         const appointmentsData = await this.mpage.scrapePatientAppointments();
                         const invoicesData = await this.mpage.scrapePatientInvoices(patientData.noAvs!);
                         await this.mpage.goBack();
                         await uploadFunctions.appointments(patientId, appointmentsData);
                         await uploadFunctions.invoices(patientId, invoicesData);
-                        actionType = 'created';
-                    }
 
-                    // Track scraper activity (always, even if patient already exists)
-                    await uploadFunctions.scraperActivity(patientId, currPageIndex, currPatientIndex, actionType);
+                        // Track scraper activity with the action type from patient upsert
+                        await uploadFunctions.scraperActivity(patientId, currPageIndex, currPatientIndex, result.actionType);
+                    } catch (error) {
+                        // If the patient was created in this iteration but we failed before completing all data insertion,
+                        // delete the patient so it can be properly recreated on retry
+                        if (wasPatientCreated && patientId) {
+                            try {
+                                await uploadFunctions.deletePatient(patientId);
+                                console.log(`Cleaned up incomplete patient record: ${patientId}`);
+                            } catch (deleteError) {
+                                console.error('Failed to clean up patient record:', deleteError);
+                            }
+                        }
+                        throw error;
+                    }
                 }
 
                 // Try to go to the next patient search page
@@ -194,22 +206,6 @@ class MediOnlineManager {
                 currPatientIndex
             );
         }
-    }
-
-    async scrapeRecentModifications(
-        uploadFunctions: {
-            patients: (patients: PatientInfo[]) => Promise<{ patientId: string; alreadyExists: boolean }>,
-            appointments: (patientId: string, appointments: AppointmentInfo[]) => Promise<void>,
-            invoices: (patientId: string, invoices: InvoiceInfo[]) => Promise<void>,
-            scraperActivity: (patientId: string, pageIndex: number, rowIndex: number, actionType: 'created' | 'updated' | 'skipped') => Promise<void>,
-        },
-        sinceData: Date
-    ): Promise<void> {
-        if (this.status !== 'connected') {
-            throw new MediOnlineError('Cannot query patients when not connected', 'NOT_CONNECTED');
-        }
-
-        await this.mpage.searchPatients({ advancedOptions: { lastModifiedStartDate: sinceData } });
     }
 
 }

@@ -5,8 +5,8 @@ import { InvoiceInfo, ServicesInfo } from '../medionline/medionline.types';
  * Upload invoices data - wrapper for scraper interface
  */
 export async function uploadInvoicesData(patientId: string, invoices: InvoiceInfo[]): Promise<void> {
-    await insertInvoices(patientId, invoices);
-    console.log(`Successfully uploaded ${invoices.length} invoices with their services`);
+    const { created, updated, skipped } = await upsertInvoices(patientId, invoices);
+    console.log(`Invoices: ${created} created, ${updated} updated, ${skipped} skipped (total: ${invoices.length})`);
 }
 
 /**
@@ -54,60 +54,125 @@ function mapServiceToDb(invoiceId: string, service: ServicesInfo) {
 }
 
 /**
- * Insert multiple invoices with their services for a patient
- * Uses a transaction to ensure data consistency
+ * Insert a single invoice with its services
  */
-export async function insertInvoices(
+async function insertInvoice(patientId: string, invoice: InvoiceInfo): Promise<void> {
+    const dbInvoice = mapInvoiceToDb(patientId, invoice);
+    const { data: insertedInvoice, error: invoiceError } = await supabase
+        .from('invoices')
+        .insert(dbInvoice)
+        .select('id')
+        .single();
+
+    if (invoiceError) {
+        throw new Error(`Failed to insert invoice: ${invoiceError.message}`);
+    }
+
+    // Insert services for this invoice
+    if (invoice.services && invoice.services.length > 0) {
+        const dbServices = invoice.services.map((service) =>
+            mapServiceToDb(insertedInvoice.id, service)
+        );
+
+        const { error: servicesError } = await supabase
+            .from('services')
+            .insert(dbServices);
+
+        if (servicesError) {
+            throw new Error(`Failed to insert services: ${servicesError.message}`);
+        }
+    }
+}
+
+/**
+ * Upsert multiple invoices with their services for a patient
+ * Returns statistics about created, updated, and skipped invoices
+ */
+export async function upsertInvoices(
     patientId: string,
     invoices: InvoiceInfo[]
-): Promise<void> {
+): Promise<{ created: number; updated: number; skipped: number }> {
     if (invoices.length === 0) {
-        return;
+        return { created: 0, updated: 0, skipped: 0 };
     }
+
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
 
     for (const invoice of invoices) {
         // Check if invoice already exists (by invoice_number + centre)
+        let existingInvoice = null;
         if (invoice.invoiceNumber && invoice.centre) {
             const { data: existing } = await supabase
                 .from('invoices')
-                .select('id')
+                .select('*')
                 .eq('invoice_number', invoice.invoiceNumber)
                 .eq('centre', invoice.centre)
                 .single();
 
-            if (existing) {
-                console.log(`Invoice ${invoice.centre} - ${invoice.invoiceNumber} already exists, skipping...`);
+            existingInvoice = existing;
+        }
+
+        if (existingInvoice) {
+            const dbInvoice = mapInvoiceToDb(patientId, invoice);
+
+            // Check if invoice data has changed
+            const hasChanged = Object.keys(dbInvoice).some(key => {
+                const existingValue = existingInvoice[key as keyof typeof existingInvoice];
+                const newValue = dbInvoice[key as keyof typeof dbInvoice];
+                // Compare values, treating null and undefined as equal
+                return (existingValue ?? null) !== (newValue ?? null);
+            });
+
+            if (!hasChanged) {
+                console.log(`Invoice ${invoice.centre} - ${invoice.invoiceNumber} is up to date, skipping...`);
+                skipped++;
                 continue;
             }
-        }
 
-        // Insert invoice
-        const dbInvoice = mapInvoiceToDb(patientId, invoice);
-        const { data: insertedInvoice, error: invoiceError } = await supabase
-            .from('invoices')
-            .insert(dbInvoice)
-            .select('id')
-            .single();
+            // Update existing invoice
+            const { error: updateError } = await supabase
+                .from('invoices')
+                .update(dbInvoice)
+                .eq('id', existingInvoice.id);
 
-        if (invoiceError) {
-            throw new Error(`Failed to insert invoice: ${invoiceError.message}`);
-        }
-
-        // Insert services for this invoice
-        if (invoice.services && invoice.services.length > 0) {
-            const dbServices = invoice.services.map((service) =>
-                mapServiceToDb(insertedInvoice.id, service)
-            );
-
-            const { error: servicesError } = await supabase
-                .from('services')
-                .insert(dbServices);
-
-            if (servicesError) {
-                throw new Error(`Failed to insert services: ${servicesError.message}`);
+            if (updateError) {
+                throw new Error(`Failed to update invoice: ${updateError.message}`);
             }
+
+            console.log(`Invoice ${invoice.centre} - ${invoice.invoiceNumber} updated`);
+            updated++;
+
+            // Update services for this invoice
+            if (invoice.services && invoice.services.length > 0) {
+                // Delete existing services
+                await supabase
+                    .from('services')
+                    .delete()
+                    .eq('invoice_id', existingInvoice.id);
+
+                // Insert new services
+                const dbServices = invoice.services.map((service) =>
+                    mapServiceToDb(existingInvoice.id, service)
+                );
+
+                const { error: servicesError } = await supabase
+                    .from('services')
+                    .insert(dbServices);
+
+                if (servicesError) {
+                    throw new Error(`Failed to insert services: ${servicesError.message}`);
+                }
+            }
+        } else {
+            // Insert new invoice
+            await insertInvoice(patientId, invoice);
+            created++;
         }
     }
+
+    return { created, updated, skipped };
 }
 
 /**
