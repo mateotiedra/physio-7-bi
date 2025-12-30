@@ -40,6 +40,16 @@ export class MediOnlinePatientsScraperError extends MediOnlineError {
     }
 }
 
+export class MediOnlineInvoicesScraperError extends MediOnlineError {
+    constructor(message: string, public readonly currPageIndex: number, public readonly currRowIndex: number) {
+        super(message, 'INVOICES_SCRAPER_ERROR');
+        this.name = 'MediOnlineInvoicesScraperError';
+        this.currPageIndex = currPageIndex;
+        this.currRowIndex = currRowIndex;
+        Object.setPrototypeOf(this, MediOnlineInvoicesScraperError.prototype);
+    }
+}
+
 /**
  * Error thrown when login to MediOnline fails
  */

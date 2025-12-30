@@ -828,6 +828,17 @@ export class MediOnlinePageWrapper {
         await this.page.waitForLoadState('networkidle');
     }
 
+    async goToRecentInvoicesPage(fromDate?: string, toDate?: string): Promise<void> {
+        fromDate = fromDate || new Date().toISOString().split('T')[0];
+        toDate = toDate || new Date().toISOString().split('T')[0];
+
+        console.log(fromDate, toDate);
+
+        await this.page.click('input[id="ctl00_btnShortcut4"]');
+        await this.page.fill('input[name="ctl00$CPH$ctl00$TextBoxDateDu"]', fromDate);
+        await this.page.fill('input[name="ctl00$CPH$ctl00$TextBoxDateAu"]', toDate);
+    }
+
     getContext(): FrameLocator | Locator | Page {
         return this.context;
     }

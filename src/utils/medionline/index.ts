@@ -7,6 +7,7 @@ import {
     InvoiceInfo,
     PatientInfo,
     MediOnlinePatientsScraperError,
+    MediOnlineInvoicesScraperError,
 } from './medionline.types';
 import { MediOnlinePageWrapper, SearchPatientsParams } from './mediOnlinePageWrapper';
 import { UpsertStats } from '../supabase/supabase.types';
@@ -214,6 +215,35 @@ class MediOnlineManager {
                 currPatientIndex
             );
         }
+
+        process.exit(0);
+    }
+
+    async scrapeNewInvoices(
+        startPageIndex: number,
+        rowIndex: number,
+        findPatient: (firstname: string, lastname: string, dob: string) => Promise<string | null>,
+        uploadInvoice: (patientId: string, invoices: InvoiceInfo[]) => Promise<UpsertStats>,
+    ): Promise<void> {
+        if (this.status !== 'connected') {
+            throw new MediOnlineError('Cannot query patients when not connected', 'NOT_CONNECTED');
+        }
+
+        await this.mpage.goToRecentInvoicesPage()
+
+        let currPageIndex = startPageIndex ?? 1;
+        let currRowIndex = rowIndex ?? 0;
+        try {
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            throw new MediOnlineInvoicesScraperError(
+                `Error scraping invoices at page ${currPageIndex}, row index ${currRowIndex}: ${errorMessage}`,
+                currPageIndex,
+                currRowIndex
+            );
+
+        }
+        process.exit(0);
     }
 
 }

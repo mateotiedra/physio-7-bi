@@ -1,69 +1,58 @@
 import { mediOnline } from '../utils/medionline/index';
+import { MediOnlineInvoicesScraperError } from '../utils/medionline/medionline.types';
 import {
     uploadPatientsData,
     upsertAppointments,
     upsertInvoices,
     trackScraperActivity,
     generateScraperId,
-    deletePatient
+    deletePatient,
+    checkPatientExists,
 } from '../utils/supabase';
 
 // Generate a unique scraper ID for this run
 const SCRAPER_ID = generateScraperId();
-console.log(`Starting scraper with ID: ${SCRAPER_ID}`);
+console.log(`Starting invoice scraper with ID: ${SCRAPER_ID}`);
 
 async function main() {
     try {
-        // Get command-line arguments: npm run scrape [mode] [pageIndex] [patientIndex]
+        // Get command-line arguments: npm run scrape [mode] [pageIndex] [rowIndex]
         const args = process.argv.slice(2);
         const mode: 'all' | 'recent' = args[0] as ('all' | 'recent');
         let pageIndex = args[1] ? parseInt(args[1], 10) : 1;
-        let patientIndex = args[2] ? parseInt(args[2], 10) : 0;
+        let rowIndex = args[2] ? parseInt(args[2], 10) : 0;
 
         await mediOnline.login(process.env.MEDIONLINE_USERNAME!, process.env.MEDIONLINE_PASSWORD!);
 
         let retryCount = 0;
         const maxRetries = 3;
         let lastFailedPageIndex: number = 0;
-        let lastFailedPatientIndex: number = 0;
-
+        let lastFailedRowIndex: number = 0;
 
         while (retryCount <= maxRetries) {
             try {
-                if (mode === 'all') {
-                    await mediOnline.setSearchParams({});
-                } else {
-                    const threeDaysAgo = new Date();
-                    threeDaysAgo.setDate(threeDaysAgo.getDate());
-                    await mediOnline.setSearchParams({ advancedOptions: { lastModifiedStartDate: threeDaysAgo } });
-                }
-                await mediOnline.scrapeSearchedPatients(
+                await mediOnline.scrapeNewInvoices(
                     pageIndex,
-                    patientIndex,
-                    {
-                        patients: uploadPatientsData,
-                        appointments: upsertAppointments,
-                        invoices: upsertInvoices,
-                        scraperActivity: trackScraperActivity,
-                        deletePatient: deletePatient,
-                    }
+                    rowIndex,
+                    (prenom, nom, ddn) => checkPatientExists({ prenom, nom, ddn }),
+                    upsertInvoices,
                 );
                 break; // Success, exit retry loop
             } catch (error: any) {
-                if (error.code === 'PATIENTS_SCRAPER_ERROR' && retryCount < maxRetries) {
+                if (error instanceof MediOnlineInvoicesScraperError && error.code === 'INVOICES_SCRAPER_ERROR' && retryCount < maxRetries) {
                     pageIndex = error.currPageIndex;
-                    patientIndex = error.currPatientIndex;
+                    rowIndex = error.currRowIndex;
 
                     // Reset retry count if error is at a different position (new error)
-                    if (pageIndex !== lastFailedPageIndex || patientIndex !== lastFailedPatientIndex) {
+                    if (pageIndex !== lastFailedPageIndex || rowIndex !== lastFailedRowIndex) {
                         retryCount = 0;
                         lastFailedPageIndex = pageIndex;
-                        lastFailedPatientIndex = patientIndex;
+                        lastFailedRowIndex = rowIndex;
                     }
 
                     retryCount++;
                     console.error(`\n❌ Error occurred: ${error.message}`);
-                    console.log(`\n🔄 Retry ${retryCount}/${maxRetries}: Restarting from page ${pageIndex}, patient ${patientIndex}\n`);
+                    console.log(`\n🔄 Retry ${retryCount}/${maxRetries}: Restarting from page ${pageIndex}, patient ${rowIndex}\n`);
 
                     await mediOnline.logoutAndClose();
                     // Wait before retrying (exponential backoff)

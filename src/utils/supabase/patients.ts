@@ -16,7 +16,7 @@ export async function uploadPatientsData(patients: PatientInfo[]): Promise<{ pat
     if (actionType === 'created') {
         console.log(`Patient created: ${patient.nom} ${patient.prenom} - ${patientId}`);
     } else {
-        console.log(`Patient skipped or updated: ${patient.nom} ${patient.prenom} - ${patientId}`);
+        console.log(`Patient already exists: ${patient.nom} ${patient.prenom} - ${patientId}`);
     }
 
     return { patientId, actionType };
@@ -235,7 +235,7 @@ export async function upsertPatient(patient: PatientInfo): Promise<{ patientId: 
  * Check if a patient already exists based on the tuple (prenom, nom, ddn, no_avs)
  * Returns true if patient exists, false otherwise
  */
-export async function checkPatientExists(patient: PatientInfo): Promise<boolean> {
+export async function checkPatientExists(patient: PatientInfo): Promise<string | null> {
     // Try to find existing patient by the tuple (prenom, nom, ddn, no_avs)
     let query = supabase
         .from('patients')
@@ -278,7 +278,7 @@ export async function checkPatientExists(patient: PatientInfo): Promise<boolean>
         throw new Error(`Failed to query patient: ${queryError.message}`);
     }
 
-    return !!existingPatient;
+    return existingPatient?.id || null;
 }
 
 /**
