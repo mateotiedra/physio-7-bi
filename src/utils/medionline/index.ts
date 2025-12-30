@@ -166,15 +166,17 @@ class MediOnlineManager {
                         const invoicesData = await this.mpage.scrapePatientInvoices(patientData.noAvs!);
                         await this.mpage.goBack();
 
-                        const { created: appointmentsCreated, updated: appointmentsUpdated, skipped: appointmentsSkipped } = await uploadFunctions.appointments(patientId, appointmentsData);
+                        const { created: appointmentsCreated, updated: appointmentsUpdated, skipped: appointmentsSkipped, deleted: appointmentsDeleted } = await uploadFunctions.appointments(patientId, appointmentsData);
                         console.log(`Appointments: ${appointmentsCreated} created, ${appointmentsUpdated} updated, ${appointmentsSkipped} skipped (total: ${appointmentsData.length})`);
 
                         const { created: invoicesCreated, updated: invoicesUpdated, skipped: invoicesSkipped } = await uploadFunctions.invoices(patientId, invoicesData);
                         console.log(`Invoices: ${invoicesCreated} created, ${invoicesUpdated} updated, ${invoicesSkipped} skipped (total: ${invoicesData.length})`);
 
-
                         // Track scraper activity with the action type from patient upsert
-                        await uploadFunctions.scraperActivity(patientId, currPageIndex, currPatientIndex, result.actionType);
+                        const scraperActionType = wasPatientCreated ? 'created'
+                            : (appointmentsCreated > 0 || invoicesCreated > 0 || appointmentsUpdated > 0 || invoicesUpdated > 0 || appointmentsDeleted > 0) ? 'updated'
+                                : 'skipped';
+                        await uploadFunctions.scraperActivity(patientId, currPageIndex, currPatientIndex, scraperActionType);
                     } catch (error) {
                         // If the patient was created in this iteration but we failed before completing all data insertion,
                         // delete the patient so it can be properly recreated on retry

@@ -15,7 +15,7 @@ console.log(`Starting scraper with ID: ${SCRAPER_ID}`);
 async function main() {
     try {
         // Get command-line arguments: npm run scrape [mode] [pageIndex] [patientIndex]
-        const args = process.argv.slice(3);
+        const args = process.argv.slice(2);
         const mode: 'all' | 'recent' = args[0] as ('all' | 'recent');
         let pageIndex = args[1] ? parseInt(args[1], 10) : 1;
         let patientIndex = args[2] ? parseInt(args[2], 10) : 0;
@@ -34,7 +34,7 @@ async function main() {
                     await mediOnline.setSearchParams({});
                 } else {
                     const threeDaysAgo = new Date();
-                    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+                    threeDaysAgo.setDate(threeDaysAgo.getDate() - 1);
                     await mediOnline.setSearchParams({ advancedOptions: { lastModifiedStartDate: threeDaysAgo } });
                 }
                 await mediOnline.scrapeSearchedPatients(

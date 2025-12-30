@@ -86,7 +86,7 @@ export async function upsertInvoices(
     invoices: InvoiceInfo[]
 ): Promise<UpsertStats> {
     if (invoices.length === 0) {
-        return { created: 0, updated: 0, skipped: 0 };
+        return { created: 0, updated: 0, skipped: 0, deleted: 0 };
     }
 
     let created = 0;
@@ -165,7 +165,7 @@ export async function upsertInvoices(
         }
     }
 
-    return { created, updated, skipped };
+    return { created, updated, skipped, deleted: 0 };
 }
 
 /**

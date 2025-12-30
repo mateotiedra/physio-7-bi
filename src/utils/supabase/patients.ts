@@ -15,10 +15,8 @@ export async function uploadPatientsData(patients: PatientInfo[]): Promise<{ pat
 
     if (actionType === 'created') {
         console.log(`Patient created: ${patient.nom} ${patient.prenom} - ${patientId}`);
-    } else if (actionType === 'updated') {
-        console.log(`Patient updated: ${patient.nom} ${patient.prenom} - ${patientId}`);
     } else {
-        console.log(`Patient skipped (up to date): ${patient.nom} ${patient.prenom} - ${patientId}`);
+        console.log(`Patient skipped or updated: ${patient.nom} ${patient.prenom} - ${patientId}`);
     }
 
     return { patientId, actionType };
