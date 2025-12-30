@@ -12,7 +12,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "scrape": "ts-node src/scrapers/patients.ts",
+    "new-patient": "ts-node src/scrapers/patients.ts recent",
+    "all": "ts-node src/scrapers/patients.ts recent",
+    "new-invoices": "ts-node src/scrapers/invoices.ts",
     "build": "tsc"
   },
   "dependencies": {
